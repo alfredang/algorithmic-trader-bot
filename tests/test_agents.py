@@ -100,5 +100,10 @@ def test_parsers():
 def test_claude_provider_never_uses_subscription_login(monkeypatch):
     from trader.agents.providers import ClaudeProvider
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    ok, msg = ClaudeProvider().available()
-    assert not ok and "subscription" in msg
+    p = ClaudeProvider()
+    ok, msg = p.available()
+    assert not ok and p.auth_mode == "none"          # no API key -> never falls back to a Claude.ai login
+    assert "subscription" in msg or "not installed" in msg
+    from trader.agents.providers import _claude_env
+    assert set(_claude_env()) <= {"ANTHROPIC_API_KEY", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "AWS_REGION",
+                                  "ANTHROPIC_VERTEX_PROJECT_ID", "CLOUD_ML_REGION"}
