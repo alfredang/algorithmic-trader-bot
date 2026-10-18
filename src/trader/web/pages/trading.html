@@ -67,7 +67,7 @@
           <div class="card !p-2.5 kpi"><span class="k">Equity</span><span class="v text-base" x-text="QTS.usd(sel.equity)"></span></div>
           <div class="card !p-2.5 kpi"><span class="k">P&L</span><span class="v text-base" :class="QTS.cls((sel.equity||0)-(sel.starting_cash||0))" x-text="QTS.usd((sel.equity||0)-(sel.starting_cash||0))"></span></div>
           <div class="card !p-2.5 kpi"><span class="k">Cycles / orders</span><span class="v text-base" x-text="sel.cycles + ' / ' + sel.orders"></span></div>
-          <div class="card !p-2.5 kpi"><span class="k">Last cycle</span><span class="v text-sm" x-text="sel.last_result ? sel.last_result.message : '–'"></span></div>
+          <div class="card !p-2.5 kpi"><span class="k">Last cycle</span><span class="v" style="font-size:.85rem;font-weight:500" x-text="sel.last_result ? sel.last_result.message : '–'"></span></div>
         </div>
         <div class="card" style="height:260px"><canvas x-ref="beq"></canvas></div>
         <div class="card">

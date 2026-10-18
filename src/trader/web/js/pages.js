@@ -36,7 +36,7 @@
         Q.on('stage', (d) => this.onStage(d));
         Q.on('route', (r) => { if (r.params.view) this.setView(r.params.view); });
         window.addEventListener('resize', () => this.drawArrows());
-        this.timer = setInterval(() => { if (document.getElementById('view').contains(this.$el)) this.load(true); else clearInterval(this.timer); }, 20000);
+        this.timer = setInterval(() => { const v = document.getElementById('view'); if (v && v.contains(this.$el)) this.load(true); else clearInterval(this.timer); }, 20000);
         if (this.view === 'lifecycle') this.setView('lifecycle');
       },
       async load(quiet) {

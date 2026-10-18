@@ -106,7 +106,8 @@ def _figures(db: Session) -> dict[str, dict]:
     custom = _count(db, select(func.count(StrategyRecord.id)).where(StrategyRecord.builtin.is_(False)))
     from trader.strategies.builtin import REGISTRY
     grids = _count(db, select(func.count(ResearchRun.id)).where(ResearchRun.kind.in_(["grid", "walk_forward", "regime"])))
-    bt = db.scalar(select(Backtest).where(Backtest.status == "done").order_by(Backtest.id.desc()).limit(1))
+    bt = next((b for b in db.scalars(select(Backtest).where(Backtest.status == "done").order_by(Backtest.id.desc()).limit(30))
+               if (b.extra or {}).get("kind", "signal") not in ("execution", "market_making")), None)
     n_bt = _count(db, select(func.count(Backtest.id)))
     ab = db.scalar(select(ResearchRun).where(ResearchRun.kind == "abtest", ResearchRun.status == "done")
                    .order_by(ResearchRun.id.desc()).limit(1))
