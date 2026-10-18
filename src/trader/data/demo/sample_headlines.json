@@ -1,0 +1,17 @@
+{
+  "_note": "SYNTHETIC headlines written for training only. They are NOT real news and do not describe real events. Used in offline mode so the News/Sentiment Analyst agent has text to read.",
+  "headlines": [
+    {"date": "2025-12-29", "symbol": "NVDA", "headline": "Chipmaker sees strong data-centre demand as cloud customers expand AI capacity"},
+    {"date": "2025-12-23", "symbol": "NVDA", "headline": "Analysts debate whether AI spending growth can be sustained into next year"},
+    {"date": "2025-12-18", "symbol": "NVDA", "headline": "Report: new export restrictions under discussion could weigh on overseas sales"},
+    {"date": "2025-12-12", "symbol": "NVDA", "headline": "Brokerage upgrade cites record backlog and margin strength"},
+    {"date": "2025-12-30", "symbol": "AAPL", "headline": "Smartphone maker holiday sales described as steady, services growth continues"},
+    {"date": "2025-12-22", "symbol": "AAPL", "headline": "Regulators open probe into app-store fee practices"},
+    {"date": "2025-12-15", "symbol": "AAPL", "headline": "Supplier checks point to weak demand for premium models in some regions"},
+    {"date": "2025-12-31", "symbol": "SPY", "headline": "US stocks end the year near record highs after strong annual gain"},
+    {"date": "2025-12-26", "symbol": "SPY", "headline": "Thin holiday trading; investors weigh rate-cut expectations for next year"},
+    {"date": "2025-12-17", "symbol": "SPY", "headline": "Inflation data comes in slightly above forecasts, bond yields rise"},
+    {"date": "2025-12-30", "symbol": "JPM", "headline": "Large US banks expected to report solid trading revenue growth"},
+    {"date": "2025-12-19", "symbol": "JPM", "headline": "Credit-card delinquencies tick higher, lenders raise loss provisions"}
+  ]
+}

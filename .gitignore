@@ -1,8 +1,28 @@
+# Python / uv
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Secrets - never commit real keys
 .env
+.env.*
+!.env.example
+
+# Local database and runtime data (the app's demo data lives in src/trader/data/demo and IS committed)
+/data/
+*.db
+*.db-wal
+*.db-shm
+logs/
+
+# OS / editors
 .DS_Store
 *.swp
-data/
-logs/
+.idea/
+.vscode/
+.playwright-mcp/
