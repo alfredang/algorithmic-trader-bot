@@ -1,0 +1,69 @@
+<div x-data="labsPage()" class="space-y-4">
+  <template x-if="!lab">
+    <div class="space-y-4">
+      <div class="card flex flex-wrap items-center gap-4">
+        <div class="flex-1 min-w-[16rem]">
+          <div class="font-semibold" x-text="course.title || 'Machine Learning 101 for Financial Trading'"></div>
+          <div class="text-sm muted">20 hands-on labs, all done in this app with the offline demo data and the simulator broker. Each step opens the right page with the right preset and tells you what to check. Progress is saved for user <b x-text="user"></b> (change it in Settings).</div>
+        </div>
+        <div class="w-48"><div class="text-xs muted mb-1">Overall progress <span x-text="overall + '%'"></span></div>
+          <div class="h-2 rounded bg-slate-200 dark:bg-slate-700"><div class="h-2 rounded bg-emerald-500" :style="'width:' + overall + '%'"></div></div></div>
+      </div>
+      <div x-show="loading" class="empty"><span class="spinner"></span> Loading labs…</div>
+      <template x-for="t in topics" :key="t.id">
+        <div class="card">
+          <div class="card-title"><span class="badge badge-info" x-text="'Topic ' + t.id"></span><span x-text="t.title"></span></div>
+          <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <template x-for="l in byTopic(t)" :key="l.id">
+              <button class="text-left rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-500 hover:shadow-sm transition" @click="open(l.id)">
+                <div class="flex items-center gap-2"><span class="text-xs font-semibold text-brand-600 dark:text-brand-100" x-text="'Lab ' + String(l.id).padStart(2,'0')"></span>
+                  <span class="ml-auto text-[11px] muted" x-text="l.completed + '/' + l.n_steps"></span></div>
+                <div class="font-medium text-sm mt-0.5" x-text="l.title"></div>
+                <div class="text-xs muted mt-1 line-clamp-2" x-text="l.objective"></div>
+                <div class="h-1.5 rounded bg-slate-200 dark:bg-slate-700 mt-2"><div class="h-1.5 rounded bg-emerald-500" :style="'width:' + pctDone(l) + '%'"></div></div>
+              </button>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="lab">
+    <div class="space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="btn" @click="lab=null; history.replaceState(null,'','#/labs')">← All labs</button>
+        <span class="badge badge-info" x-text="'Topic ' + lab.topic"></span>
+        <h2 class="text-lg font-semibold" x-text="'Lab ' + String(lab.id).padStart(2,'0') + ' · ' + lab.title"></h2>
+        <button class="btn-link ml-auto text-red-600" @click="reset()">Reset progress</button>
+      </div>
+      <div class="card">
+        <div class="text-sm"><b>Objective.</b> <span x-text="lab.objective"></span></div>
+        <div class="text-sm mt-2" x-show="lab.expected"><b>You'll produce.</b> <span x-text="lab.expected"></span></div>
+        <div class="text-xs muted mt-2" x-show="lab.course_link" x-text="'Course link: ' + lab.course_link"></div>
+      </div>
+      <template x-for="s in lab.steps" :key="s.index">
+        <div class="card flex gap-3" :class="s.done ? 'opacity-80' : ''">
+          <button @click="toggle(s)" class="w-6 h-6 shrink-0 rounded border-2 flex items-center justify-center mt-0.5" :class="s.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600'" :aria-label="s.done ? 'Mark not done' : 'Mark done'">
+            <span x-show="s.done">✓</span></button>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm"><span x-text="(s.index+1) + '. '"></span><span x-text="s.title"></span></div>
+            <div class="text-sm mt-1 whitespace-pre-line" x-text="s.instruction"></div>
+            <div class="flex flex-wrap items-center gap-2 mt-2">
+              <a x-show="s.app_route" class="btn-primary btn-xs" :href="'#/' + s.app_route" x-text="s.preset ? 'Open: ' + s.preset : 'Open in the app'"></a>
+              <span x-show="s.done" class="text-xs muted" x-text="'done ' + QTS.ago(s.completed_at)"></span>
+            </div>
+            <div x-show="s.check" class="mt-2 text-xs rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-2"><b>Check:</b> <span x-text="s.check"></span></div>
+            <div x-show="s.optional_python_prompt" class="mt-2">
+              <button class="btn-link text-xs" @click="showPy[s.index] = !showPy[s.index]" x-text="showPy[s.index] ? 'Hide under-the-hood Python' : 'Under the hood: Python / AI-assistant prompt'"></button>
+              <div x-show="showPy[s.index]" class="relative">
+                <pre class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-3 whitespace-pre-wrap mt-1" x-text="s.optional_python_prompt"></pre>
+                <button class="btn btn-xs absolute top-2 right-2" @click="QTS.copy(s.optional_python_prompt)">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>

@@ -1,0 +1,35 @@
+<div x-data="helpPage()" class="space-y-4">
+  <div class="tabs"><template x-for="t in [['glossary','Metric glossary'],['algorithms','Algorithms'],['topics','Course topics'],['agents','Agentic AI'],['guide','User guide']]"><a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template></div>
+
+  <div x-show="tab==='glossary'" class="card scroll-x space-y-2">
+    <input class="input max-w-sm" x-model="q" placeholder="Search metrics…">
+    <table class="t"><thead><tr><th>Metric</th><th>Formula</th><th>Meaning</th></tr></thead>
+      <tbody><template x-for="m in metricList" :key="m[0]"><tr><td class="font-semibold whitespace-nowrap" x-text="m[1].label"></td><td class="mono text-xs" x-text="m[1].formula"></td><td class="text-sm" x-text="m[1].help"></td></tr></template></tbody></table>
+    <p class="text-xs muted">Returns are simple daily returns; annualised figures assume 252 trading days. Formulas match the course (Topic 2.5) and the Excel-reproducible definitions in the labs.</p>
+  </div>
+
+  <div x-show="tab==='algorithms'" class="space-y-3">
+    <div class="card scroll-x"><div class="card-title">Classification of algorithmic trading by purpose</div>
+      <table class="t"><thead><tr><th>Class</th><th>Purpose</th><th>Examples</th></tr></thead><tbody><template x-for="c in g.algo_classes"><tr><td class="font-semibold" x-text="c.name"></td><td class="text-sm" x-text="c.purpose"></td><td class="text-sm" x-text="c.examples"></td></tr></template></tbody></table></div>
+    <div class="grid md:grid-cols-2 gap-3"><template x-for="(v, title) in g.algo_explain" :key="title">
+      <div class="card text-sm"><div class="font-semibold" x-text="title"></div><div class="text-[11px] muted mb-1" x-text="v.kicker"></div>
+        <template x-for="k in ['How it works','Rule','Works best when','Watch out for']"><div class="mt-1"><span class="text-xs font-semibold text-brand-600 dark:text-brand-100" x-text="k + ': '"></span><span x-text="v[k]"></span></div></template></div></template></div>
+  </div>
+
+  <div x-show="tab==='topics'" class="space-y-3">
+    <template x-for="t in g.topics" :key="t.no"><div class="card">
+      <button class="w-full text-left font-semibold" @click="open[t.no] = !open[t.no]" x-text="'Topic ' + t.no + ' · ' + t.title"></button>
+      <div x-show="open[t.no]" class="mt-2 space-y-3"><template x-for="s in t.sections" :key="s.id"><div><div class="font-medium text-sm" x-text="s.id + ' ' + s.title"></div>
+        <ul class="list-disc ml-5 text-sm space-y-1 mt-1"><template x-for="b in s.bullets"><li x-text="b"></li></template></ul></div></template></div>
+    </div></template>
+  </div>
+
+  <div x-show="tab==='agents'" class="card text-sm space-y-3">
+    <div class="card-title">AI agents vs agentic AI</div>
+    <template x-if="g.agentic_vs_agents.comparison"><div class="scroll-x"><table class="t"><tbody><template x-for="row in g.agentic_vs_agents.comparison"><tr><template x-for="c in row"><td x-text="c"></td></template></tr></template></tbody></table></div></template>
+    <template x-if="g.agentic_vs_agents.spectrum"><div><div class="font-semibold mb-1">The spectrum</div><template x-for="s in g.agentic_vs_agents.spectrum"><div><b x-text="s[0]"></b> - <span x-text="s[1]"></span></div></template></div></template>
+    <p class="muted">In this app: <b>agentic AI</b> is the capability of AI to plan and call tools, skills, memory and instructions (the analyst desk); an <b>AI agent</b> is a special class of agentic AI that stands by 24/7 and works all the time - for example OpenClaw, Hermes Agent or OpenAI Dots - which is what the Always-on agent mode does.</p>
+  </div>
+
+  <div x-show="tab==='guide'" class="card prose-guide max-w-none" x-html="guide || '<div class=&quot;muted&quot;>Loading the user guide…</div>'"></div>
+</div>

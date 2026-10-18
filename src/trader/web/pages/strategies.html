@@ -1,0 +1,58 @@
+<div x-data="strategiesPage()" class="space-y-4">
+  <div class="card flex flex-wrap gap-3 items-end">
+    <div class="flex-1 min-w-[12rem]"><label class="label">Search</label><input class="input" x-model="f.q" placeholder="crossover, pairs, XGBoost…"></div>
+    <div><label class="label">Category (by purpose)</label><select class="input" x-model="f.category"><option value="">all</option><template x-for="o in opts('category')"><option x-text="o"></option></template></select></div>
+    <div><label class="label">Family</label><select class="input" x-model="f.family"><option value="">all</option><template x-for="o in opts('family')"><option x-text="o"></option></template></select></div>
+    <div><label class="label">Holding period</label><select class="input" x-model="f.holding"><option value="">all</option><template x-for="o in opts('holding')"><option x-text="o"></option></template></select></div>
+    <div><label class="label">Model type</label><select class="input" x-model="f.model"><option value="">all</option><template x-for="o in opts('model')"><option x-text="o"></option></template></select></div>
+    <a href="#/builder" class="btn-primary">+ New custom strategy</a>
+  </div>
+  <div class="text-xs muted" x-text="list.length + ' strategies - every strategy taught in the course, plus your custom ones. Click a card for how it works.'"></div>
+  <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+    <template x-for="s in list" :key="s.key">
+      <div class="card cursor-pointer hover:shadow-md transition" @click="sel=s">
+        <div class="flex items-start gap-2"><div class="font-semibold flex-1" x-text="s.name"></div>
+          <span class="badge" :class="s.custom ? 'badge-warn' : 'badge-info'" x-text="s.custom ? 'custom' : kindLabel(s.kind)"></span></div>
+        <p class="text-sm muted mt-1" x-text="s.summary"></p>
+        <div class="flex flex-wrap gap-1 mt-2">
+          <span class="badge badge-muted" x-text="s.tags.category"></span><span class="badge badge-muted" x-text="s.tags.holding_period"></span><span class="badge badge-muted" x-text="s.tags.model_type"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- detail drawer -->
+  <div x-show="sel" x-cloak class="fixed inset-y-0 right-0 z-40 w-full sm:w-[34rem] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-5 overflow-y-auto">
+    <template x-if="sel"><div class="space-y-3">
+      <div class="flex gap-2"><h2 class="text-lg font-semibold flex-1" x-text="sel.name"></h2><button class="btn btn-xs" @click="sel=null">Close</button></div>
+      <div class="flex flex-wrap gap-1"><span class="badge badge-info" x-text="sel.tags.category"></span><span class="badge badge-muted" x-text="sel.tags.family"></span><span class="badge badge-muted" x-text="sel.tags.holding_period"></span><span class="badge badge-muted" x-text="sel.tags.model_type"></span><span class="badge badge-muted" x-show="sel.course_ref" x-text="sel.course_ref"></span></div>
+      <p class="text-sm" x-text="sel.summary"></p>
+      <div class="grid gap-2">
+        <template x-for="b in [['How it works', sel.how], ['Rule', sel.rule], ['Works best when', sel.works_best], ['Watch out for', sel.watch_out]]">
+          <div x-show="b[1]" class="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5"><div class="text-xs font-semibold text-brand-600 dark:text-brand-100" x-text="b[0]"></div><div class="text-sm" x-text="b[1]"></div></div></template>
+      </div>
+      <div><div class="text-xs font-semibold mb-1">Parameters</div>
+        <table class="t"><thead><tr><th>Name</th><th>Default</th><th>Range</th><th>Meaning</th></tr></thead>
+          <tbody><template x-for="p in sel.params_schema"><tr><td class="font-mono text-xs" x-text="p.name"></td><td x-text="String(p.default)"></td><td class="text-xs" x-text="p.choices ? p.choices.join(' / ') : ((p.min ?? '') + ' … ' + (p.max ?? ''))"></td><td class="text-xs" x-text="p.help"></td></tr></template>
+            <tr x-show="!sel.params_schema.length"><td colspan="4" class="muted text-xs">no parameters</td></tr></tbody></table></div>
+      <div class="text-xs muted">Default symbols: <span x-text="sel.default_symbols.join(', ')"></span><span x-show="sel.needs.length"> · needs: <span x-text="sel.needs.join(', ')"></span></span></div>
+      <div class="flex flex-wrap gap-2">
+        <a class="btn-primary" :href="'#/backtest?strategy=' + sel.key">Backtest</a>
+        <a class="btn" :href="'#/builder?clone=' + sel.key" x-show="sel.builtin">Clone to Strategy Builder</a>
+        <a class="btn" :href="'#/builder?key=' + sel.key" x-show="sel.custom">Edit code</a>
+        <button class="btn" x-show="sel.pine" @click="showPine(sel)">Pine Script v6</button>
+        <a class="btn" x-show="!['execution','market_making'].includes(sel.kind)" :href="'#/trading?new=1&strategy=' + sel.key">Create paper bot</a>
+        <button class="btn-link text-red-600" x-show="sel.custom" @click="remove(sel)">Delete</button>
+      </div>
+    </div></template>
+  </div>
+
+  <!-- pine modal -->
+  <div x-show="pine" x-cloak class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" @click.self="pine=null">
+    <div class="card w-full max-w-3xl max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center gap-2 mb-2"><div class="font-semibold flex-1" x-text="'Pine Script v6 - ' + (pine && pine.name)"></div><button class="btn btn-xs" @click="QTS.copy(pine.code)">Copy</button><button class="btn btn-xs" @click="pine=null">Close</button></div>
+      <p class="text-xs muted mb-2">Paste into TradingView's Pine Editor → Add to chart → Strategy Tester. Orders fill on the next bar's open like the app's engine. Replace YOUR_SECRET with the webhook secret from Integrations to send alerts to the app.</p>
+      <pre class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-3 overflow-x-auto" x-text="pine && pine.code"></pre>
+    </div>
+  </div>
+</div>

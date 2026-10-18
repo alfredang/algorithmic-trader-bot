@@ -1,0 +1,215 @@
+<div x-data="researchPage()" class="space-y-4">
+  <div class="tabs">
+    <template x-for="t in [['hypothesis','Hypothesis test'],['grid','Strategy search'],['walkforward','Walk-forward'],['abtest','A/B test'],['regime','Regimes'],['diagnostics','Diagnostics'],['pairs','Pairs screen'],['ml','ML models'],['execution','Execution algos']]">
+      <a class="tab" :class="sub===t[0] && 'active'" :href="'#/research/' + t[0]" x-text="t[1]"></a></template>
+  </div>
+  <div class="grid xl:grid-cols-4 gap-4">
+    <div class="space-y-3">
+      <!-- forms -->
+      <div class="card space-y-2" x-show="sub==='hypothesis'">
+        <div class="card-title">Hypothesis card</div>
+        <p class="text-xs muted">Write H0 and H1 <b>before</b> looking at results (course Topic 1.6). The test compares the forward return on signal days with all other days.</p>
+        <div><label class="label">Instrument</label><input class="input" x-model="hyp.symbol"></div>
+        <div><label class="label">Signal (known at the close of day t)</label><select class="input" :value="hyp.type" @change="setHypType($event.target.value)"><template x-for="(v,k) in hsignals"><option :value="k" x-text="k.replaceAll('_',' ')" :selected="k===hyp.type"></option></template></select></div>
+        <div class="grid grid-cols-2 gap-2"><template x-for="(v,k) in hyp.params"><div><label class="label" x-text="k"></label><input class="input" type="number" step="any" x-model.number="hyp.params[k]"></div></template></div>
+        <div class="grid grid-cols-3 gap-2"><div><label class="label">Horizon (days)</label><input class="input" type="number" x-model.number="hyp.horizon"></div><div><label class="label">alpha</label><input class="input" type="number" step="0.01" x-model.number="hyp.alpha"></div><div><label class="label">Min edge bps</label><input class="input" type="number" x-model.number="hyp.min_edge_bps"></div></div>
+        <div><label class="label">H1 (alternative)</label><textarea class="input" rows="2" x-model="hyp.h1"></textarea></div>
+        <div><label class="label">H0 (null)</label><textarea class="input" rows="2" x-model="hyp.h0"></textarea></div>
+        <button class="btn-primary w-full justify-center" @click="runHyp()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run the test</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='grid'">
+        <div class="card-title">Parameter grid search</div>
+        <div><label class="label">Strategy</label><select class="input" x-model="grid.strategy_key" @change="setGridText()"><template x-for="s in signalStrategies"><option :value="s.key" x-text="s.name"></option></template></select></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="grid.symbol"></div>
+        <div><label class="label">In-sample ends (out-of-sample starts the next day)</label><input class="input" type="date" x-model="grid.split_date"></div>
+        <div><label class="label">Grid (JSON: parameter → values)</label><textarea class="input mono" rows="4" x-model="grid.gridText"></textarea></div>
+        <div><label class="label">Costs</label><select class="input" x-model="grid.costs"><option>alpaca_retail</option><option>zero</option><option>per_share_broker</option><option>high_cost</option></select></div>
+        <button class="btn-primary w-full justify-center" @click="runGrid()" :disabled="busy"><span x-show="busy" class="spinner"></span>Search</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='walkforward'">
+        <div class="card-title">Walk-forward optimisation</div>
+        <p class="text-xs muted">Choose the best parameters on each training window, apply them to the next unseen window, roll forward and stitch the test windows together.</p>
+        <div><label class="label">Strategy (default grid)</label><select class="input" x-model="wf.strategy_key"><template x-for="s in signalStrategies.filter(s => grids[s.key])"><option :value="s.key" x-text="s.name"></option></template></select></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="wf.symbol"></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="label">Train bars</label><input class="input" type="number" x-model.number="wf.train_bars"></div><div><label class="label">Test bars</label><input class="input" type="number" x-model.number="wf.test_bars"></div></div>
+        <button class="btn-primary w-full justify-center" @click="runWF()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run walk-forward</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='abtest'">
+        <div class="card-title">A/B test two variants</div>
+        <p class="text-xs muted">Same days, same costs. H0: equal expected daily return and Sharpe.</p>
+        <div><label class="label">Variant A</label><select class="input" x-model="ab.a"><template x-for="s in strategies.filter(s => !['execution','market_making'].includes(s.kind))"><option :value="s.key" x-text="s.name"></option></template></select>
+          <input class="input mono mt-1 text-xs" x-model="ab.aParams" placeholder='{"fast": 20, "slow": 50}'></div>
+        <div><label class="label">Variant B</label><select class="input" x-model="ab.b"><template x-for="s in strategies.filter(s => !['execution','market_making'].includes(s.kind))"><option :value="s.key" x-text="s.name"></option></template></select>
+          <input class="input mono mt-1 text-xs" x-model="ab.bParams" placeholder="{}"></div>
+        <div class="grid grid-cols-3 gap-2"><div><label class="label">Symbol</label><input class="input" x-model="ab.symbol"></div><div><label class="label">alpha</label><input class="input" type="number" step="0.01" x-model.number="ab.alpha"></div><div><label class="label" title="number of variants you tried - for the Bonferroni caution">Variants tried</label><input class="input" type="number" x-model.number="ab.tried"></div></div>
+        <button class="btn-primary w-full justify-center" @click="runAB()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run A/B test</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='regime'">
+        <div class="card-title">Market regimes (PCA + K-means)</div>
+        <div><label class="label">Symbol to gate</label><input class="input" x-model="rg.symbol"></div>
+        <div><label class="label">Clusters (k)</label><input class="input" type="number" min="2" max="5" x-model.number="rg.clusters"></div>
+        <div><label class="label">Signal to gate</label><select class="input" x-model="rg.base"><template x-for="k in ['ema_cross','sma_cross','trend_filter','ts_momentum','donchian_breakout','macd_cross','dip_buy']"><option x-text="k"></option></template></select></div>
+        <button class="btn-primary w-full justify-center" @click="runRegime()" :disabled="busy"><span x-show="busy" class="spinner"></span>Analyse regimes</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='diagnostics'">
+        <div class="card-title">Bias diagnostics</div>
+        <p class="text-xs muted">Look-ahead (features and execution), cost drag, overfitting against skill-free random strategies, survivorship. Try the seeded <b>Lab 18 biased exhibit</b>.</p>
+        <div><label class="label">Strategy</label><select class="input" x-model="dg.strategy_key"><template x-for="s in signalStrategies"><option :value="s.key" x-text="s.name"></option></template></select></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="dg.symbol"></div>
+        <div><label class="label">Parameter sets tried</label><input class="input" type="number" x-model.number="dg.trials"></div>
+        <button class="btn-primary w-full justify-center" @click="runDiag()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run diagnostics</button>
+      </div>
+      <div class="card space-y-2" x-show="sub==='pairs'">
+        <div class="card-title">Cointegration screen</div>
+        <div><label class="label">Pairs (A/B, comma separated)</label><textarea class="input" rows="2" x-model="pr.pairs"></textarea></div>
+        <div><label class="label">Formation period ends</label><input class="input" type="date" x-model="pr.formation_end"></div>
+        <button class="btn-primary w-full justify-center" @click="runPairs()" :disabled="busy"><span x-show="busy" class="spinner"></span>Screen pairs</button>
+        <a class="btn w-full justify-center" href="#/backtest?strategy=pairs_cointegration&symbols=KO,PEP">Backtest the KO/PEP pair</a>
+      </div>
+      <div class="card space-y-2" x-show="sub==='ml'">
+        <div class="card-title">ML direction classifiers</div>
+        <div><label class="label">Symbol</label><input class="input" x-model="ml.symbol"></div>
+        <div><label class="label">Long when P(up) &gt;</label><input class="input" type="number" step="0.01" x-model.number="ml.threshold"></div>
+        <button class="btn-primary w-full justify-center" @click="runML()" :disabled="busy"><span x-show="busy" class="spinner"></span>Train walk-forward</button>
+        <p class="help">Logistic regression, random forest and XGBoost, refitted every 126 bars on the past only.</p>
+      </div>
+      <div class="card space-y-2" x-show="sub==='execution'">
+        <div class="card-title">TWAP / VWAP / POV</div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="label">Symbol (1Hour)</label><input class="input" x-model="ex.symbol"></div><div><label class="label">Session date</label><input class="input" type="date" x-model="ex.day"></div></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="label">Side</label><select class="input" x-model="ex.side"><option>buy</option><option>sell</option></select></div><div><label class="label">Parent qty</label><input class="input" type="number" x-model.number="ex.qty"></div></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="label">POV rate</label><input class="input" type="number" step="0.01" x-model.number="ex.participation"></div><div><label class="label">Impact coef</label><input class="input" type="number" step="0.01" x-model.number="ex.impact_coef"></div></div>
+        <button class="btn-primary w-full justify-center" @click="runExec()" :disabled="busy"><span x-show="busy" class="spinner"></span>Simulate</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Previous runs</div>
+        <div x-show="!runs.length" class="text-xs muted">none yet</div>
+        <template x-for="r in runs" :key="r.id"><button class="w-full text-left text-sm py-1 border-b border-slate-100 dark:border-slate-800" @click="open(r.id)" :class="res && res.id===r.id ? 'font-semibold' : ''">
+          <span class="break-all" x-text="'#' + r.id + ' ' + r.name"></span><div class="text-xs muted truncate" x-text="r.headline || r.status"></div></button></template>
+      </div>
+    </div>
+
+    <!-- results -->
+    <div class="xl:col-span-3 space-y-3">
+      <div x-show="!res" class="empty py-16">Fill in the form and run - results, charts and the decision appear here.</div>
+      <template x-if="res && res.status==='error'"><div class="card text-red-600" x-text="res.error"></div></template>
+      <template x-if="res && res.result">
+        <div class="space-y-3">
+          <!-- hypothesis -->
+          <template x-if="res.kind==='hypothesis'"><div class="space-y-3">
+            <div class="card"><div class="text-xs muted">H1</div><div class="text-sm" x-text="res.result.h1"></div><div class="text-xs muted mt-1">H0</div><div class="text-sm" x-text="res.result.h0"></div>
+              <div class="mt-3 text-base font-semibold" :class="res.result.supported ? 'pos' : 'neg'" x-text="'DECISION: ' + res.result.decision"></div></div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="card !p-2.5 kpi"><span class="k">Signal days</span><span class="v text-base" x-text="res.result.signal_days + ' (' + QTS.pct(res.result.share,1) + ')'"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Mean fwd return | signal</span><span class="v text-base" x-text="QTS.pct(res.result.mean_signal,3)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Mean | other days</span><span class="v text-base" x-text="QTS.pct(res.result.mean_other,3)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Edge</span><span class="v text-base" x-text="QTS.num(res.result.edge_bps,1) + ' bps'"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Welch t / p</span><span class="v text-base" x-text="QTS.num(res.result.welch_t) + ' / ' + QTS.num(res.result.p_value,3)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">95% bootstrap CI</span><span class="v text-sm" x-text="QTS.pct(res.result.ci[0],3) + ' … ' + QTS.pct(res.result.ci[1],3)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Hit rate signal / all</span><span class="v text-base" x-text="QTS.pct(res.result.hit_signal,1) + ' / ' + QTS.pct(res.result.hit_all,1)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Bonferroni alpha</span><span class="v text-base" x-text="QTS.num(res.result.bonferroni_alpha,4)"></span></div>
+            </div>
+            <div class="card scroll-x"><div class="card-title">Descriptive statistics (signal vs other days)</div><table class="t"><thead><tr><th></th><th class="num">n</th><th class="num">mean</th><th class="num">std</th><th class="num">skew</th><th class="num">kurtosis</th><th class="num">hit rate</th></tr></thead>
+              <tbody><template x-for="row in [['Signal days', res.result.signal_stats],['Other days', res.result.other_stats]]"><tr><td x-text="row[0]"></td><td class="num" x-text="row[1].n"></td><td class="num" x-text="QTS.pct(row[1].mean,3)"></td><td class="num" x-text="QTS.pct(row[1].std,2)"></td><td class="num" x-text="QTS.num(row[1].skew)"></td><td class="num" x-text="QTS.num(row[1].kurtosis)"></td><td class="num" x-text="QTS.pct(row[1].hit_rate,1)"></td></tr></template></tbody></table></div>
+            <div class="card scroll-x"><div class="card-title">Robustness grid <span class="card-sub">count every variant you try</span></div><table class="t"><thead><tr><th>Symbol</th><th>Param</th><th class="num">Value</th><th class="num">Signal days</th><th class="num">Edge bps</th><th class="num">t</th><th class="num">p</th><th>Decision</th></tr></thead>
+              <tbody><template x-for="r in res.result.robustness"><tr><td x-text="r.symbol"></td><td x-text="r.param"></td><td class="num" x-text="r.value"></td><td class="num" x-text="r.signal_days"></td><td class="num" x-text="QTS.num(r.edge_bps,1)"></td><td class="num" x-text="QTS.num(r.t)"></td><td class="num" x-text="QTS.num(r.p,3)"></td><td><span class="badge" :class="r.supported ? 'badge-ok' : 'badge-muted'" x-text="r.supported ? 'supported' : 'not supported'"></span></td></tr></template></tbody></table></div>
+          </div></template>
+
+          <!-- grid -->
+          <template x-if="res.kind==='grid'"><div class="space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="card !p-2.5 kpi"><span class="k">Sets tested</span><span class="v text-base" x-text="res.result.n_sets"></span></div>
+              <div class="card !p-2.5 kpi" title="Spearman rank correlation of in-sample vs out-of-sample Sharpe; near 0 means the in-sample ranking has little value"><span class="k">IS→OOS rank corr <span class="qmark">?</span></span><span class="v text-base" x-text="QTS.num(res.result.rank_corr)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Top-5 decay (Sharpe)</span><span class="v text-base neg" x-text="QTS.num(res.result.top5_decay)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Beat B&H out of sample</span><span class="v text-base" x-text="QTS.pct(res.result.beat_bh_oos,0)"></span></div>
+            </div>
+            <template x-if="res.result.heatmap"><div class="card scroll-x">
+              <div class="card-title">Sharpe decay heatmap <span class="card-sub" x-text="'rows ' + res.result.heatmap.y_name + ', columns ' + res.result.heatmap.x_name"></span></div>
+              <div class="grid lg:grid-cols-2 gap-4">
+                <template x-for="side in ['IS','OOS']"><div><div class="text-xs font-semibold mb-1" x-text="side==='IS' ? 'In-sample (to ' + res.result.split_date + ')' : 'Out-of-sample (after ' + res.result.split_date + ')'"></div>
+                  <table class="heat"><thead><tr><th></th><template x-for="x in res.result.heatmap.x"><th class="text-xs muted" x-text="x"></th></template></tr></thead>
+                    <tbody><template x-for="(y, i) in res.result.heatmap.y"><tr><td class="text-xs font-semibold" x-text="y"></td><template x-for="(v, j) in res.result.heatmap[side][i]"><td :style="'background:' + heatColor(v)" class="w-12" x-text="v === null ? '' : v.toFixed(2)"></td></template></tr></template></tbody></table></div></template>
+              </div>
+              <div class="text-sm mt-2" x-show="res.result.heatmap.robust">Robust region (best neighbour-average in-sample Sharpe): <b x-text="JSON.stringify(res.result.heatmap.robust)"></b></div>
+            </div></template>
+            <div class="card scroll-x max-h-96 overflow-y-auto"><table class="t"><thead><tr><th>IS rank</th><th>Params</th><th class="num">IS Sharpe</th><th class="num">OOS Sharpe</th><th class="num">Decay</th><th class="num">OOS rank</th><th class="num">Trades</th><th></th></tr></thead>
+              <tbody><template x-for="r in res.result.rows" :key="JSON.stringify(r.params)"><tr><td x-text="r.IS_rank"></td><td class="mono text-xs" x-text="JSON.stringify(r.params)"></td><td class="num" x-text="QTS.num(r.IS_sharpe)"></td><td class="num" x-text="QTS.num(r.OOS_sharpe)"></td><td class="num" :class="QTS.cls(r.decay)" x-text="QTS.num(r.decay)"></td><td class="num" x-text="r.OOS_rank"></td><td class="num" x-text="r.trades"></td>
+                <td><a class="link text-xs" :href="'#/backtest?strategy=' + res.result.strategy + '&symbols=' + res.result.symbol + '&' + Object.entries(r.params).map(e => e[0] + '=' + e[1]).join('&')">backtest</a></td></tr></template></tbody></table></div>
+            <p class="text-xs muted" x-text="res.result.note"></p>
+          </div></template>
+
+          <!-- walk-forward -->
+          <template x-if="res.kind==='walk_forward'"><div class="space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><template x-for="k in ['cagr','sharpe','max_drawdown','total_return']"><div class="card !p-2.5 kpi" :title="QTS.metricTip(k)"><span class="k" x-text="QTS.label(k) + ' (OOS)'"></span><span class="v text-base" x-text="QTS.fmtMetric(k, res.result.oos_metrics[k])"></span><span class="text-[10px] muted" x-text="'B&H ' + QTS.fmtMetric(k, res.result.bh_metrics[k])"></span></div></template></div>
+            <div class="card" style="height:300px"><canvas x-ref="c1"></canvas></div>
+            <div class="card scroll-x"><table class="t"><thead><tr><th>Train</th><th>Test</th><th>Chosen params</th><th class="num">IS Sharpe</th><th class="num">OOS Sharpe</th><th class="num">OOS return</th></tr></thead>
+              <tbody><template x-for="w in res.result.windows"><tr><td class="text-xs" x-text="w.train.join(' → ')"></td><td class="text-xs" x-text="w.test.join(' → ')"></td><td class="mono text-xs" x-text="JSON.stringify(w.params)"></td><td class="num" x-text="QTS.num(w.IS_sharpe)"></td><td class="num" x-text="QTS.num(w.OOS_sharpe)"></td><td class="num" :class="QTS.cls(w.OOS_return)" x-text="QTS.pct(w.OOS_return)"></td></tr></template></tbody></table>
+              <p class="text-xs muted mt-2" x-text="res.result.note + ' Distinct parameter sets chosen: ' + res.result.param_stability + ' (fewer = more stable).'"></p></div>
+          </div></template>
+
+          <!-- A/B -->
+          <template x-if="res.kind==='abtest'"><div class="space-y-3">
+            <div class="card"><div class="text-base font-semibold" :class="res.result.reject_h0 ? 'pos' : 'text-amber-600'" x-text="'DECISION: ' + res.result.decision"></div>
+              <p class="text-sm muted mt-1" x-text="res.result.multiple_testing_note"></p></div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="card !p-2.5 kpi"><span class="k">Welch t-test</span><span class="v text-base" x-text="'p = ' + QTS.num(res.result.welch_p,3)"></span><span class="text-[10px] muted" x-text="'t = ' + QTS.num(res.result.welch_t)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Paired t-test (A−B)</span><span class="v text-base" x-text="'p = ' + QTS.num(res.result.paired_p,3)"></span><span class="text-[10px] muted" x-text="'t = ' + QTS.num(res.result.paired_t)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Sharpe A − B</span><span class="v text-base" x-text="QTS.num(res.result.sharpe_diff)"></span><span class="text-[10px] muted" x-text="'95% CI ' + QTS.num(res.result.ci[0]) + ' … ' + QTS.num(res.result.ci[1])"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">A beats B (bootstrap)</span><span class="v text-base" x-text="QTS.pct(res.result.share_a_beats_b,0)"></span><span class="text-[10px] muted" x-text="res.result.n_days + ' days'"></span></div>
+            </div>
+            <div class="grid lg:grid-cols-2 gap-3"><div class="card" style="height:260px"><canvas x-ref="c1"></canvas></div><div class="card" style="height:260px"><canvas x-ref="c2"></canvas></div></div>
+            <div class="card scroll-x"><table class="t"><thead><tr><th>Metric</th><th class="num" x-text="'A: ' + res.result.a.strategy"></th><th class="num" x-text="'B: ' + res.result.b.strategy"></th></tr></thead>
+              <tbody><template x-for="k in ['cagr','volatility','sharpe','sortino','max_drawdown','win_rate','trades','exposure']"><tr><td x-text="QTS.label(k)"></td><td class="num" x-text="QTS.fmtMetric(k, res.result.a.metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, res.result.b.metrics[k])"></td></tr></template></tbody></table></div>
+          </div></template>
+
+          <!-- regime -->
+          <template x-if="res.kind==='regime'"><div class="space-y-3">
+            <div class="card flex flex-wrap items-center gap-3"><div>Latest walk-forward regime: <b x-text="res.result.latest_regime"></b></div><span class="badge" :class="res.result.gate_open ? 'badge-ok' : 'badge-err'" x-text="res.result.gate_open ? 'gate OPEN (signals pass)' : 'gate CLOSED (flat)'"></span>
+              <div class="text-xs muted flex-1" x-text="res.result.note"></div></div>
+            <div class="card scroll-x"><div class="card-title">Regime profile (full-sample K-means, description only)</div><table class="t"><thead><tr><th>Regime</th><th class="num">Days</th><th class="num">Share</th><th class="num">Avg vol</th><th class="num">Avg 21d return</th><th class="num">Next-day Sharpe</th></tr></thead>
+              <tbody><template x-for="p in res.result.profile"><tr><td><span class="dot mr-1" :style="'background:' + segColor(p.regime)"></span><span x-text="p.regime"></span></td><td class="num" x-text="p.days"></td><td class="num" x-text="QTS.pct(p.share,0)"></td><td class="num" x-text="QTS.pct(p.avg_vol,1)"></td><td class="num" x-text="QTS.pct(p.avg_ret_21,1)"></td><td class="num" x-text="QTS.num(p.next_day_sharpe)"></td></tr></template></tbody></table></div>
+            <div class="card"><div class="card-title">Walk-forward regime timeline</div><div class="flex h-6 rounded overflow-hidden"><template x-for="s in res.result.segments"><div :style="'flex:' + Math.max(1,(new Date(s.end)-new Date(s.start))/864e5) + ';background:' + segColor(s.regime)" :title="s.regime + ': ' + s.start + ' → ' + s.end"></div></template></div>
+              <div class="flex justify-between text-[10px] muted mt-1"><span x-text="res.result.segments[0] && res.result.segments[0].start"></span><span x-text="res.result.segments.length && res.result.segments[res.result.segments.length-1].end"></span></div></div>
+            <div class="grid lg:grid-cols-3 gap-3"><div class="card lg:col-span-2" style="height:280px"><canvas x-ref="c1"></canvas></div><div class="card" style="height:280px"><canvas x-ref="c2"></canvas></div></div>
+            <div class="card scroll-x"><table class="t"><thead><tr><th></th><template x-for="k in ['cagr','sharpe','max_drawdown','exposure','trades']"><th class="num" x-text="QTS.label(k)"></th></template></tr></thead>
+              <tbody><template x-for="row in [['Ungated ' + res.result.base, res.result.ungated_metrics],['Gated (flat in stress)', res.result.gated_metrics],['Buy & hold', res.result.bh_metrics]]"><tr><td x-text="row[0]"></td><template x-for="k in ['cagr','sharpe','max_drawdown','exposure','trades']"><td class="num" x-text="QTS.fmtMetric(k, row[1][k])"></td></template></tr></template></tbody></table>
+              <div class="text-xs muted mt-2">PCA: PC1 explains <b x-text="QTS.pct(res.result.pca.explained_variance[0],1)"></b> of the variance of <span x-text="res.result.pca.n_assets"></span> assets - the broad market factor. Loadings: <span class="mono" x-text="JSON.stringify(Object.fromEntries(Object.entries(res.result.pca.loadings.PC1).map(e => [e[0], +e[1].toFixed(2)])))"></span></div></div>
+          </div></template>
+
+          <!-- diagnostics -->
+          <template x-if="res.kind==='diagnostics'"><div class="space-y-3">
+            <div class="card"><div class="text-base font-semibold" :class="res.result.fails ? 'neg' : 'pos'" x-text="'VERDICT for ' + res.result.name + ': ' + res.result.verdict"></div></div>
+            <div class="card scroll-x"><table class="t"><thead><tr><th>Check</th><th>Status</th><th>Evidence</th></tr></thead>
+              <tbody><template x-for="c in res.result.checks"><tr><td class="font-semibold text-sm whitespace-nowrap" x-text="c.check"></td><td><span class="badge" :class="QTS.statusBadge(c.status)" x-text="c.status"></span></td><td class="text-sm" x-text="c.evidence"></td></tr></template></tbody></table></div>
+            <div class="card" style="height:320px"><canvas x-ref="c1"></canvas></div>
+            <p class="text-xs muted">Overfitting: the cloud shows 500 skill-free random long/flat strategies - in-sample skill rarely persists out of sample. A strategy must beat the best of the N random strategies you could have tried.</p>
+          </div></template>
+
+          <!-- pairs -->
+          <template x-if="res.kind==='pairs'"><div class="card scroll-x space-y-2">
+            <div class="card-title">Engle-Granger screen on the formation period (to <span x-text="res.result.formation_end"></span>)</div>
+            <table class="t"><thead><tr><th>Pair</th><th class="num">corr(returns)</th><th class="num">Hedge ratio β</th><th class="num">ADF t</th><th class="num">Half-life (days)</th><th>Cointegrated at 5%?</th><th></th></tr></thead>
+              <tbody><template x-for="p in res.result.pairs"><tr><td class="font-semibold" x-text="p.pair"></td><td class="num" x-text="QTS.num(p.corr)"></td><td class="num" x-text="QTS.num(p.beta,3)"></td><td class="num" x-text="QTS.num(p.adf_t)"></td><td class="num" x-text="QTS.num(p.half_life,0)"></td><td><span class="badge" :class="p.cointegrated_5pct ? 'badge-ok' : 'badge-muted'" x-text="p.cointegrated_5pct ? 'YES' : 'no'"></span></td>
+                <td><a class="link text-xs" :href="'#/backtest?strategy=pairs_cointegration&symbols=' + p.a + ',' + p.b">backtest pair</a></td></tr></template></tbody></table>
+            <p class="text-xs muted">Critical values (MacKinnon, 2 variables with constant): 1% −3.90, 5% −3.34, 10% −3.04. <span x-text="res.result.note"></span></p>
+          </div></template>
+
+          <!-- ml -->
+          <template x-if="res.kind==='ml'"><div class="space-y-3">
+            <div class="card scroll-x"><table class="t"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">Precision</th><th class="num">AUC</th><th class="num">Base rate</th><th class="num">OOS CAGR</th><th class="num">OOS Sharpe</th><th>Verdict</th></tr></thead>
+              <tbody><template x-for="m in res.result.models"><tr><td class="font-semibold" x-text="m.model"></td><td class="num" x-text="QTS.pct(m.accuracy,1)"></td><td class="num" x-text="QTS.pct(m.precision,1)"></td><td class="num" x-text="QTS.num(m.auc,3)"></td><td class="num" x-text="QTS.pct(m.base_rate,1)"></td><td class="num" x-text="QTS.pct(m.backtest.cagr)"></td><td class="num" x-text="QTS.num(m.backtest.sharpe)"></td><td class="text-xs" x-text="m.verdict"></td></tr></template>
+                <tr><td class="muted">Buy & hold (same window)</td><td colspan="4"></td><td class="num" x-text="QTS.pct(res.result.bh.cagr)"></td><td class="num" x-text="QTS.num(res.result.bh.sharpe)"></td><td></td></tr></tbody></table>
+              <p class="text-xs muted mt-2">Always predicting 'up' scores the base rate and AUC 0.5. Judge the model by the net-of-cost strategy, not by accuracy alone.</p></div>
+            <div class="card" style="height:340px"><canvas x-ref="c1"></canvas></div>
+          </div></template>
+
+          <!-- execution -->
+          <template x-if="res.kind==='execution'"><div class="space-y-3">
+            <div class="card scroll-x"><table class="t"><thead><tr><th>Algo</th><th class="num">Avg price</th><th class="num">Session VWAP</th><th class="num">Arrival</th><th class="num">vs VWAP bps</th><th class="num">Shortfall bps</th><th class="num">Fill rate</th></tr></thead>
+              <tbody><template x-for="c in res.result.results"><tr><td class="font-semibold uppercase" x-text="c.algo"></td><td class="num" x-text="QTS.num(c.avg_price)"></td><td class="num" x-text="QTS.num(c.session_vwap)"></td><td class="num" x-text="QTS.num(c.arrival_price)"></td><td class="num" x-text="QTS.num(c.slippage_vs_vwap_bps,1)"></td><td class="num" x-text="QTS.num(c.implementation_shortfall_bps,1)"></td><td class="num" x-text="QTS.pct(c.fill_rate)"></td></tr></template></tbody></table></div>
+            <div class="card" style="height:300px"><canvas x-ref="c1"></canvas></div>
+          </div></template>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>

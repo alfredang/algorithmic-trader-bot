@@ -1,0 +1,114 @@
+<div x-data="pipelinePage()" class="space-y-4">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-sm">
+      <button class="px-3 py-1.5" :class="view==='pipeline' ? 'bg-brand-600 text-white' : ''" @click="setView('pipeline')">Pipeline</button>
+      <button class="px-3 py-1.5" :class="view==='lifecycle' ? 'bg-brand-600 text-white' : ''" @click="setView('lifecycle')">Strategy lifecycle</button>
+    </div>
+    <p class="text-sm muted flex-1 min-w-[16rem]" x-show="view==='pipeline'">Every stage of the end-to-end algorithmic trading pipeline (course Topic 4.1), with its live state. Click a stage to see its recent activity; the highlighted path is the bot cycle running right now.</p>
+    <p class="text-sm muted flex-1 min-w-[16rem]" x-show="view==='lifecycle'">One strategy's journey from idea to analytics, with the pass/fail gate it must clear at each step.</p>
+    <div class="flex items-center gap-2">
+      <button class="btn" @click="demoCycle()" :disabled="busy" title="Run one cycle of the demo bot so you can watch the path light up">
+        <span x-show="busy" class="spinner"></span>Run a bot cycle</button>
+      <button class="btn" @click="load()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- legend -->
+  <div class="flex flex-wrap gap-3 text-xs muted" x-show="view==='pipeline'">
+    <template x-for="s in ['ok','running','warning','error','idle']"><span class="inline-flex items-center gap-1"><span class="dot" :class="dotColor(s)"></span><span x-text="s"></span></span></template>
+    <span class="inline-flex items-center gap-1"><span class="dot bg-slate-300"></span>disabled / offline fallback (greyed)</span>
+    <span class="inline-flex items-center gap-1"><span class="dot bg-blue-500 animate-pulse"></span>active path</span>
+    <span class="ml-auto" x-text="'Updated ' + ago(data.generated_at)"></span>
+  </div>
+
+  <!-- PIPELINE VIEW -->
+  <div x-show="view==='pipeline'" class="relative" x-ref="wrap">
+    <svg x-ref="svg" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:0">
+      <defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/></marker></defs>
+      <g x-ref="arrows"></g>
+    </svg>
+    <div class="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-x-8 gap-y-8" style="z-index:1">
+      <template x-for="n in main" :key="n.key">
+        <div class="pnode" :data-key="n.key" :class="nodeClass(n)" @click="select(n)" :title="n.tooltip" tabindex="0" @keydown.enter="select(n)">
+          <span class="num-badge" x-text="n.order"></span>
+          <div class="flex items-start gap-2">
+            <div class="font-semibold text-sm leading-tight flex-1" x-text="n.title"></div>
+            <span class="dot mt-1" :class="dotColor(n.status) + (n.status==='running' ? ' animate-pulse' : '')"></span>
+          </div>
+          <div class="text-[11px] muted leading-tight mb-1" x-text="n.subtitle"></div>
+          <div class="text-[11px] space-y-0.5"><template x-for="line in figures(n)"><div x-html="line"></div></template></div>
+          <div class="text-[10px] muted mt-1" x-text="n.last_run ? 'last ' + ago(n.last_run) : 'not run yet'"></div>
+          <div x-show="n.disabled" class="text-[10px] text-amber-600 mt-1 leading-tight" x-text="n.hint"></div>
+        </div>
+      </template>
+    </div>
+    <div class="relative grid grid-cols-1 sm:grid-cols-2 gap-6 mt-10 max-w-3xl mx-auto" style="z-index:1">
+      <template x-for="n in side" :key="n.key">
+        <div class="pnode border-dashed" :data-key="n.key" :class="nodeClass(n)" @click="select(n)" :title="n.tooltip" style="min-height:96px">
+          <div class="flex items-start gap-2"><div class="font-semibold text-sm flex-1" x-text="n.title"></div><span class="badge badge-muted">side input</span></div>
+          <div class="text-[11px] muted" x-text="n.subtitle + ' → ' + (n.feeds||[]).join(', ')"></div>
+          <div class="text-[11px] mt-1"><template x-for="line in figures(n)"><div x-html="line"></div></template></div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- side panel -->
+  <div x-show="sel" x-cloak class="fixed inset-y-0 right-0 z-40 w-full sm:w-[28rem] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-5 overflow-y-auto">
+    <template x-if="sel">
+      <div class="space-y-3">
+        <div class="flex items-start gap-2">
+          <div class="flex-1"><div class="text-xs muted" x-text="sel.order ? 'Stage ' + sel.order : 'Side input'"></div><h2 class="text-lg font-semibold" x-text="sel.title"></h2></div>
+          <button class="btn-xs btn" @click="sel=null">Close</button>
+        </div>
+        <span class="badge" :class="QTS.statusBadge(sel.status)" x-text="sel.status"></span>
+        <p class="text-sm" x-text="sel.tooltip"></p>
+        <div x-show="sel.disabled" class="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-2 text-xs" x-text="sel.hint"></div>
+        <div class="card !p-3"><div class="text-xs font-semibold mb-1">Key figures</div>
+          <template x-for="(v, k) in sel.metrics"><div class="flex justify-between text-xs py-0.5"><span class="muted" x-text="k.replaceAll('_',' ')"></span><span class="font-mono" x-text="fmtVal(k, v)"></span></div></template></div>
+        <div x-show="sel.last_error" class="text-xs rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-2"><b>Last error</b> <span x-text="sel.last_error && ago(sel.last_error.ts)"></span>: <span x-text="sel.last_error && sel.last_error.message"></span></div>
+        <div class="flex flex-wrap gap-2">
+          <a class="btn-primary" :href="openHref(sel)">Open page</a>
+          <button class="btn" x-show="sel.key==='forward'" @click="demoCycle()">Run a bot cycle</button>
+        </div>
+        <div>
+          <div class="text-xs font-semibold mb-1">Recent activity</div>
+          <div x-show="!events.length" class="empty text-xs">No activity recorded for this stage yet.</div>
+          <template x-for="e in events" :key="e.id">
+            <div class="text-xs py-1.5 border-b border-slate-100 dark:border-slate-800">
+              <span class="badge" :class="QTS.statusBadge(e.status)" x-text="e.status"></span>
+              <span class="muted ml-1" x-text="ago(e.ts)"></span>
+              <div class="mt-0.5" x-text="e.message"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- LIFECYCLE VIEW -->
+  <div x-show="view==='lifecycle'" class="space-y-4">
+    <div class="card flex flex-wrap items-end gap-3">
+      <div class="min-w-[16rem]"><label class="label">Strategy</label>
+        <select class="input" x-model="lcKey" @change="loadLifecycle()"><template x-for="s in strategies" :key="s.key"><option :value="s.key" x-text="s.name"></option></template></select></div>
+      <div><label class="label">Backtest gate: net Sharpe ≥</label><input class="input w-24" type="number" step="0.1" x-model.number="gate" @change="loadLifecycle()"></div>
+      <a class="btn" :href="'#/backtest?strategy=' + lcKey">Backtest it</a>
+      <a class="btn" :href="'#/research/abtest?a=' + lcKey">A/B test it</a>
+      <a class="btn" :href="'#/research/diagnostics?strategy=' + lcKey">Diagnose it</a>
+      <a class="btn" :href="'#/trading?new=1&strategy=' + lcKey">Forward-test it</a>
+    </div>
+    <div class="flex flex-col xl:flex-row gap-2 items-stretch">
+      <template x-for="(s, i) in (lc.steps||[])" :key="s.key">
+        <div class="flex flex-col xl:flex-row items-stretch gap-2 flex-1">
+          <a :href="'#/' + s.route" class="pnode flex-1 block" :class="s.status==='pass' ? 'st-ok' : s.status==='fail' ? 'st-error' : s.status==='running' ? 'st-running' : 'st-idle'" style="min-height:150px">
+            <div class="flex items-center gap-2"><span class="font-semibold text-sm flex-1" x-text="s.title"></span><span class="badge" :class="QTS.statusBadge(s.status)" x-text="s.status"></span></div>
+            <div class="text-[11px] muted mt-1" x-text="'Gate: ' + s.gate"></div>
+            <div class="text-[11px] mt-1 space-y-0.5"><template x-for="(v,k) in s.figures"><div class="truncate"><span class="muted" x-text="k.replaceAll('_',' ') + ': '"></span><span x-text="fmtVal(k, v)"></span></div></template></div>
+          </a>
+          <div x-show="i < lc.steps.length-1" class="self-center text-slate-400 text-xl px-1">→</div>
+        </div>
+      </template>
+    </div>
+    <p class="text-xs muted">Gates: backtest net Sharpe threshold, A/B test that rejects H0 on both the paired test and the bootstrap Sharpe CI, diagnostics with no FAIL, at least 20 forward-test cycles without a large loss, and a human approval before anything reaches the Alpaca paper account.</p>
+  </div>
+</div>

@@ -1,0 +1,150 @@
+<div x-data="tradingPage()" class="space-y-4">
+  <div class="card flex flex-wrap items-center gap-3 !py-3">
+    <span class="badge" :class="clock.session==='regular' ? 'badge-ok' : clock.session==='closed' ? 'badge-muted' : 'badge-warn'" x-text="'US session: ' + (clock.session||'').toUpperCase()"></span>
+    <span class="text-sm" x-text="clock.describe"></span>
+    <span class="text-xs muted flex-1" x-text="clock.session==='regular' ? 'All order types accepted.' : clock.session==='closed' ? 'Market closed: orders queue as GTC limit orders for the next session.' : 'Extended hours (Alpaca 24/5): bots send LIMIT orders, time-in-force DAY, extended_hours=True, priced off the latest quote ± 25 bps.'"></span>
+    <button class="btn-primary" @click="showNew=!showNew" x-text="showNew ? 'Close' : '+ New bot'"></button>
+  </div>
+
+  <!-- new bot -->
+  <div x-show="showNew" class="card space-y-3">
+    <div class="card-title">New paper-trading bot <span class="card-sub">a scheduled forward test: completed bars → signal → risk checks → paper orders → P&L</span></div>
+    <div class="grid md:grid-cols-4 gap-3">
+      <div><label class="label">Name</label><input class="input" x-model="nb.name"></div>
+      <div><label class="label">Strategy</label><select class="input" :value="nb.strategy_key" @change="pickStrategy($event.target.value)"><template x-for="s in strategies" :key="s.key"><option :value="s.key" x-text="s.name" :selected="s.key===nb.strategy_key"></option></template></select></div>
+      <div><label class="label">Symbols</label><input class="input" x-model="nb.symbols"></div>
+      <div><label class="label" title="5-field cron in New York time (35 9 * * 1-5 = 09:35 ET Mon-Fri) or 'every 30s' / 'every 5m'">Schedule <span class="qmark">?</span></label><input class="input" x-model="nb.schedule"></div>
+      <div><label class="label">Broker</label><select class="input" x-model="nb.broker"><option value="sim">Built-in simulator</option><option value="alpaca_paper">Alpaca paper (needs keys)</option></select></div>
+      <div x-show="nb.broker==='sim'"><label class="label" title="replay: offline forward test, one bundled bar per cycle; live: latest data and the real clock">Data mode <span class="qmark">?</span></label><select class="input" x-model="nb.data_mode"><option value="replay">replay (offline, 1 bar / cycle)</option><option value="live">live (latest data, real clock)</option></select></div>
+      <div x-show="nb.data_mode==='replay' && nb.broker==='sim'"><label class="label">Replay from</label><input class="input" type="date" x-model="nb.replay_start"></div>
+      <div><label class="label">Position size (fraction of equity)</label><input class="input" type="number" step="0.05" x-model.number="nb.pct"></div>
+      <div><label class="label">Max position % (risk)</label><input class="input" type="number" step="0.05" x-model.number="nb.max_position_pct"></div>
+      <div><label class="label">Max order value $</label><input class="input" type="number" x-model.number="nb.max_order_value"></div>
+      <div><label class="label">Max daily loss</label><input class="input" type="number" step="0.005" x-model.number="nb.max_daily_loss_pct"></div>
+      <div class="flex items-end gap-4 text-sm"><label class="inline-flex gap-1 items-center"><input type="checkbox" x-model="nb.long_only"> long only</label><label class="inline-flex gap-1 items-center" title="trade outside the regular session with extended-hours limit orders"><input type="checkbox" x-model="nb.extended_hours"> extended hours</label></div>
+    </div>
+    <template x-if="nbDesc"><div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <template x-for="p in nbDesc.params_schema" :key="p.name"><div><label class="label" x-text="p.name" :title="p.help"></label>
+        <template x-if="p.type==='bool'"><input type="checkbox" x-model="nb.params[p.name]"></template>
+        <template x-if="p.type==='choice'"><select class="input" x-model="nb.params[p.name]"><template x-for="c in p.choices"><option x-text="c"></option></template></select></template>
+        <template x-if="!['bool','choice'].includes(p.type)"><input class="input" type="number" step="any" x-model="nb.params[p.name]"></template></div></template>
+    </div></template>
+    <button class="btn-primary" @click="createBot()">Create bot</button>
+  </div>
+
+  <div class="tabs">
+    <template x-for="t in [['bots','Bots'],['orders','Orders'],['positions','Positions'],['ticket','Order ticket']]"><a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template>
+  </div>
+
+  <!-- bots -->
+  <div x-show="tab==='bots'" class="grid xl:grid-cols-3 gap-4">
+    <div class="space-y-2">
+      <div x-show="!bots.length" class="empty">No bots yet. Press <b>+ New bot</b>, or create one from a backtest result.</div>
+      <template x-for="b in bots" :key="b.id">
+        <div class="card cursor-pointer" :class="sel && sel.id===b.id ? 'ring-2 ring-brand-500' : ''" @click="select(b)">
+          <div class="flex items-center gap-2"><span class="badge" :class="QTS.statusBadge(b.status)" x-text="b.status"></span><span class="font-semibold text-sm flex-1 truncate" x-text="b.name"></span><span x-show="b.kill_switch" class="badge badge-err">KILL</span></div>
+          <div class="text-xs muted mt-1" x-text="b.strategy_key + ' ' + JSON.stringify(b.params) + ' · ' + b.symbols.join(',')"></div>
+          <div class="text-xs muted" x-text="b.broker + ' · ' + b.data_mode + ' · ' + b.schedule + ' · ' + b.cycles + ' cycles' + (b.cursor ? ' · bar ' + b.cursor : '')"></div>
+          <div class="flex items-center mt-1"><span class="font-semibold" x-text="QTS.usd(b.equity)"></span><span class="ml-2 text-xs" :class="QTS.cls((b.equity||0)-(b.starting_cash||0))" x-text="QTS.pct((b.equity||0)/(b.starting_cash||1)-1)"></span><span class="ml-auto text-xs muted" x-text="QTS.ago(b.last_run_at)"></span></div>
+          <div x-show="b.last_error" class="text-xs text-red-600 mt-1" x-text="b.last_error"></div>
+        </div>
+      </template>
+    </div>
+    <div class="xl:col-span-2 space-y-3">
+      <template x-if="sel"><div class="space-y-3">
+        <div class="card flex flex-wrap gap-2 items-center">
+          <div class="font-semibold flex-1" x-text="sel.name"></div>
+          <button class="btn-ok btn-xs" x-show="sel.status!=='running' && !sel.kill_switch" @click="act(sel,'start')">Start</button>
+          <button class="btn btn-xs" x-show="sel.status==='running'" @click="act(sel,'stop')">Stop</button>
+          <button class="btn btn-xs" @click="act(sel,'run-now')">Run one cycle now</button>
+          <button class="btn btn-xs" @click="act(sel,'flatten')">Flatten</button>
+          <button class="btn btn-xs" @click="act(sel,'reset')">Reset</button>
+          <button class="btn-danger btn-xs" x-show="!sel.kill_switch" @click="act(sel,'kill')">Kill switch</button>
+          <button class="btn btn-xs" x-show="sel.kill_switch" @click="act(sel,'release')">Release kill switch</button>
+        </div>
+        <div class="text-xs muted" x-show="sel.status==='running'">Running on schedule <b x-text="sel.schedule"></b> - the worker must be running (<code>uv run trader worker</code>, <code>--with-worker</code>, or the Docker <code>worker</code> service). Updates stream in live.</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="card !p-2.5 kpi"><span class="k">Equity</span><span class="v text-base" x-text="QTS.usd(sel.equity)"></span></div>
+          <div class="card !p-2.5 kpi"><span class="k">P&L</span><span class="v text-base" :class="QTS.cls((sel.equity||0)-(sel.starting_cash||0))" x-text="QTS.usd((sel.equity||0)-(sel.starting_cash||0))"></span></div>
+          <div class="card !p-2.5 kpi"><span class="k">Cycles / orders</span><span class="v text-base" x-text="sel.cycles + ' / ' + sel.orders"></span></div>
+          <div class="card !p-2.5 kpi"><span class="k">Last cycle</span><span class="v text-sm" x-text="sel.last_result ? sel.last_result.message : '–'"></span></div>
+        </div>
+        <div class="card" style="height:260px"><canvas x-ref="beq"></canvas></div>
+        <div class="card">
+          <div class="card-title">Risk limits (enforced in code before every order)</div>
+          <div class="flex flex-wrap gap-2 text-xs"><template x-for="(v,k) in sel.risk"><span class="badge badge-muted" x-text="k.replaceAll('_',' ') + ': ' + (Array.isArray(v) ? (v.join(',') || 'any') : v)"></span></template></div>
+        </div>
+        <div class="card"><div class="card-title">Backtest vs forward test <button class="btn btn-xs ml-auto" @click="compare()">Compare</button></div>
+          <template x-if="cmp && !cmp.ready"><div class="text-sm muted" x-text="cmp.message"></div></template>
+          <template x-if="cmp && cmp.ready"><div class="space-y-2"><div style="height:220px"><canvas x-ref="bcmp"></canvas></div>
+            <table class="t"><thead><tr><th></th><th class="num">Return</th><th class="num">Sharpe</th><th class="num">Max DD</th><th class="num">Fills</th></tr></thead><tbody>
+              <tr><td>Forward (paper)</td><td class="num" x-text="QTS.pct(cmp.forward_metrics.total_return)"></td><td class="num" x-text="QTS.num(cmp.forward_metrics.sharpe)"></td><td class="num" x-text="QTS.pct(cmp.forward_metrics.max_drawdown)"></td><td class="num" x-text="cmp.forward_fills"></td></tr>
+              <tr><td>Backtest (same bars)</td><td class="num" x-text="QTS.pct(cmp.backtest_metrics.total_return)"></td><td class="num" x-text="QTS.num(cmp.backtest_metrics.sharpe)"></td><td class="num" x-text="QTS.pct(cmp.backtest_metrics.max_drawdown)"></td><td class="num" x-text="cmp.backtest_fills"></td></tr></tbody></table>
+            <div class="text-xs muted" x-text="'Tracking error ' + QTS.pct(cmp.tracking_error) + '. ' + cmp.note"></div></div></template>
+        </div>
+        <div class="card scroll-x"><div class="card-title">Recent fills</div>
+          <div x-show="!fills.length" class="text-xs muted">No fills yet - start the bot or run a cycle.</div>
+          <table class="t" x-show="fills.length"><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Fees</th><th class="num">Realised P&L</th></tr></thead>
+            <tbody><template x-for="f in fills" :key="f.id"><tr><td class="text-xs" x-text="f.ts.slice(0,16)"></td><td x-text="f.symbol"></td><td :class="f.side==='buy' ? 'pos' : 'neg'" x-text="f.side"></td><td class="num" x-text="f.qty"></td><td class="num" x-text="QTS.num(f.price)"></td><td class="num" x-text="QTS.num(f.costs)"></td><td class="num" :class="QTS.cls(f.realized_pnl)" x-text="QTS.usd(f.realized_pnl, 2)"></td></tr></template></tbody></table></div>
+      </div></template>
+      <div x-show="!sel && bots.length" class="empty">Select a bot.</div>
+    </div>
+  </div>
+
+  <!-- orders -->
+  <div x-show="tab==='orders'" class="card scroll-x space-y-2">
+    <div class="flex flex-wrap items-center gap-2"><div class="card-title !mb-0">Order lifecycle</div>
+      <select class="input w-40" x-model="orderFilter"><option value="all">all</option><option value="open">open / working</option><option value="bot">from bots</option><option value="manual">manual</option><option value="webhook">TradingView</option><option value="agent">AI agents</option></select>
+      <button class="btn btn-xs ml-auto" @click="processOrders()" title="Simulator: try to fill working limit / stop orders at the latest price (the worker does this every minute)">Process working orders</button></div>
+    <div x-show="!filteredOrders.length" class="empty">No orders.</div>
+    <table class="t" x-show="filteredOrders.length"><thead><tr><th>Submitted</th><th>Account</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th>Type / TIF</th><th class="num">Limit / stop</th><th>Status</th><th class="num">Fill</th><th>Session</th><th>Source</th><th></th></tr></thead>
+      <tbody><template x-for="o in filteredOrders" :key="o.id"><tr>
+        <td class="text-xs" x-text="o.submitted_at.slice(0,16)"></td><td class="text-xs" x-text="acctName(o.account_id)"></td><td class="font-semibold" x-text="o.symbol"></td><td :class="o.side==='buy' ? 'pos' : 'neg'" x-text="o.side"></td>
+        <td class="num" x-text="o.qty"></td><td class="text-xs" x-text="o.type + ' ' + o.time_in_force + (o.extended_hours ? ' ext-hrs' : '') + (o.order_class!=='simple' ? ' ' + o.order_class : '') + (o.parent_id ? ' (leg)' : '')"></td>
+        <td class="num text-xs" x-text="(o.limit_price ? QTS.num(o.limit_price) : '') + (o.stop_price ? ' / ' + QTS.num(o.stop_price) : '')"></td>
+        <td><button class="badge" :class="QTS.statusBadge(o.status)" @click="expanded[o.id]=!expanded[o.id]" x-text="o.status" title="show lifecycle"></button>
+          <div x-show="expanded[o.id]" class="text-[11px] muted mt-1"><template x-for="h in o.history"><div x-text="h.status + ' @ ' + String(h.ts).slice(0,19) + (h.note ? ' - ' + h.note : '')"></div></template><div x-show="o.note" x-text="o.note"></div><div class="mono" x-text="o.client_order_id"></div></div></td>
+        <td class="num" x-text="o.filled_avg_price ? QTS.num(o.filled_avg_price) : ''"></td><td class="text-xs" x-text="o.session"></td><td class="text-xs" x-text="o.source"></td>
+        <td><button class="btn-link text-xs text-red-600" x-show="['new','accepted','held','partially_filled'].includes(o.status)" @click="cancel(o)">cancel</button></td></tr></template></tbody></table>
+  </div>
+
+  <!-- positions -->
+  <div x-show="tab==='positions'" class="card scroll-x">
+    <div x-show="!positions.length" class="empty">No open positions.</div>
+    <table class="t" x-show="positions.length"><thead><tr><th>Account</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Avg entry</th><th class="num">Last</th><th class="num">Market value</th><th class="num">Unrealised P&L</th><th class="num">%</th><th class="num">Realised P&L</th></tr></thead>
+      <tbody><template x-for="p in positions" :key="p.account_id + p.symbol"><tr><td class="text-xs" x-text="acctName(p.account_id)"></td><td class="font-semibold" x-text="p.symbol"></td><td x-text="p.side"></td><td class="num" x-text="p.qty"></td><td class="num" x-text="QTS.num(p.avg_entry_price)"></td><td class="num" x-text="QTS.num(p.last_price)"></td><td class="num" x-text="QTS.usd(p.market_value)"></td><td class="num" :class="QTS.cls(p.unrealized_pl)" x-text="QTS.usd(p.unrealized_pl, 2)"></td><td class="num" :class="QTS.cls(p.unrealized_plpc)" x-text="QTS.pct(p.unrealized_plpc)"></td><td class="num" :class="QTS.cls(p.realized_pnl)" x-text="QTS.usd(p.realized_pnl, 2)"></td></tr></template></tbody></table>
+  </div>
+
+  <!-- ticket -->
+  <div x-show="tab==='ticket'" class="grid lg:grid-cols-2 gap-4">
+    <div class="card space-y-3">
+      <div class="card-title">Manual paper order</div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><label class="label">Symbol</label><input class="input" x-model="ticket.symbol"></div>
+        <div><label class="label">Side</label><select class="input" x-model="ticket.side"><option>buy</option><option>sell</option></select></div>
+        <div><label class="label">Qty</label><input class="input" type="number" x-model.number="ticket.qty"></div>
+        <div><label class="label" title="auto = market in the regular session, extended-hours limit outside it, GTC limit when closed">Type <span class="qmark">?</span></label><select class="input" x-model="ticket.type"><option value="auto">auto (session-aware)</option><option>market</option><option>limit</option><option>stop</option></select></div>
+        <div><label class="label">Time in force</label><select class="input" x-model="ticket.time_in_force"><option>day</option><option>gtc</option></select></div>
+        <div><label class="label">Account</label><select class="input" x-model="ticket.account"><option>Default paper account</option><option>Alpaca paper account</option></select></div>
+        <div><label class="label">Limit price</label><input class="input" type="number" step="0.01" x-model="ticket.limit_price"></div>
+        <div><label class="label">Stop price</label><input class="input" type="number" step="0.01" x-model="ticket.stop_price"></div>
+        <div class="flex items-end"><label class="inline-flex items-center gap-1 text-sm"><input type="checkbox" x-model="ticket.extended_hours"> extended hours</label></div>
+        <div><label class="label">Bracket take-profit</label><input class="input" type="number" step="0.01" x-model="ticket.take_profit" placeholder="optional"></div>
+        <div><label class="label">Bracket stop-loss</label><input class="input" type="number" step="0.01" x-model="ticket.stop_loss" placeholder="optional"></div>
+        <div><label class="label" title="Simulator only: pretend it is this US session (teaching aid). Alpaca uses its real clock.">Session (sim) <span class="qmark">?</span></label><select class="input" x-model="ticket.session_override"><option value="">real clock</option><option>regular</option><option>pre</option><option>after</option><option>overnight</option><option>closed</option></select></div>
+      </div>
+      <button class="btn-primary" @click="place()">Send paper order</button>
+      <p class="help">Every manual order passes the same pre-trade risk checks as bots: kill switch, session rules, long-only, max order value, max position, max daily loss and a unique client_order_id.</p>
+    </div>
+    <div class="card space-y-2">
+      <div class="card-title">Result</div>
+      <div x-show="!ticketRes" class="text-sm muted">Send an order to see the risk checks and the order lifecycle.</div>
+      <template x-if="ticketRes"><div class="space-y-2">
+        <div><span class="badge" :class="ticketRes.ok ? 'badge-ok' : 'badge-err'" x-text="ticketRes.ok ? 'ACCEPTED' : 'BLOCKED'"></span> <span class="text-sm" x-text="ticketRes.risk.reason"></span></div>
+        <div x-show="ticketRes.order" class="text-sm"><span x-text="ticketRes.order && (ticketRes.order.side.toUpperCase() + ' ' + ticketRes.order.qty + ' ' + ticketRes.order.symbol + ' ' + ticketRes.order.type.toUpperCase() + ' ' + ticketRes.order.time_in_force.toUpperCase() + (ticketRes.order.extended_hours ? ' extended_hours' : '') + (ticketRes.order.limit_price ? ' limit ' + ticketRes.order.limit_price : '') + ' → ' + ticketRes.order.status)"></span></div>
+        <div class="text-xs muted" x-text="'Session: ' + ticketRes.session.session + ' - ' + ticketRes.session.note"></div>
+        <table class="t"><tbody><template x-for="c in ticketRes.risk.checks"><tr><td x-text="c.check"></td><td><span class="badge" :class="c.ok ? 'badge-ok' : 'badge-err'" x-text="c.ok ? 'ok' : 'blocked'"></span></td><td class="text-xs" x-text="c.message"></td></tr></template></tbody></table>
+      </div></template>
+    </div>
+  </div>
+</div>

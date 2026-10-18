@@ -1,0 +1,498 @@
+# Course Labs manifest - "Machine Learning 101 for Financial Trading" (Tertiary Infotech Academy).
+# The app's Course Labs page is generated from this file, so the course team can edit the labs
+# without touching code. Fields per lab:
+#   id, topic, title, objective, expected, course_link
+#   steps: [{title, instruction, app_route, preset, check, optional_python_prompt}]
+# app_route is the in-app hash route (no leading '#/'); query parameters pre-fill the page.
+# Every lab works offline with the bundled demo data and the built-in simulator broker.
+
+course:
+  title: "Machine Learning 101 for Financial Trading"
+  provider: "Tertiary Infotech Academy Pte Ltd"
+  note: "PAPER trading only. Lion City Capital and all scenarios are fictitious. Not investment advice."
+
+topics:
+  - {id: 1, title: "Foundations of Quant and Algorithmic Trading: From Thorp to AI Agents"}
+  - {id: 2, title: "Technical Indicators, Trading Strategies and Metrics with TradingView and Alpaca"}
+  - {id: 3, title: "Machine Learning Models, Statistical Modelling and A/B Testing for Trading Signals"}
+  - {id: 4, title: "Building an End-to-End Algorithmic Trading Pipeline: Backtest, Forward Test and Performance Analysis"}
+
+labs:
+  # ------------------------------------------------------------------ Topic 1
+  - id: 1
+    topic: 1
+    title: "Set up: Alpaca paper (or offline demo), AI login and integrations"
+    objective: "Get the simulator running, decide between the offline demo and an Alpaca paper account, and check every integration's status."
+    expected: "A working app with demo data loaded, a verified Alpaca paper account or the simulator, and a known AI-agent brain."
+    course_link: "Topic 1.1-1.4; Lab 01 pipeline configuration"
+    steps:
+      - title: "Load the demo data"
+        instruction: "Open Settings and press 'Load / refresh demo data' (or run `uv run trader seed`). This caches 12 symbols of daily bars 2018-2025, SPY hourly bars, sample headlines, two custom strategies and sample backtests."
+        app_route: "settings"
+        preset: "Settings > Demo data"
+        check: "Settings shows about 29,000 bars and at least 8 backtests."
+      - title: "Check the integrations"
+        instruction: "Open Integrations. Without keys, Alpaca shows 'not configured' and the app uses the simulator broker and the offline data. To connect Alpaca paper: alpaca.markets > Paper Trading > API Keys > Generate, copy APCA_API_KEY_ID and APCA_API_SECRET_KEY into .env, restart, then press Test connection."
+        app_route: "integrations"
+        preset: "Integrations"
+        check: "Alpaca test says 'Paper account ACTIVE' (online) - or you understand the app runs fully offline."
+      - title: "Check the AI agent login"
+        instruction: "On the Integrations page read the OpenAI Codex card (Sign in with ChatGPT - run `codex login` on your own machine) and the Claude card (API key only - Anthropic's terms do not allow third-party apps to use Claude.ai subscription login). Read both 'Provider terms' panels."
+        app_route: "integrations"
+        preset: "Integrations > AI providers"
+        check: "You can say which brain the desk will use: codex, claude, openai or the rule-based fallback."
+      - title: "Read the market clock"
+        instruction: "Look at the US session badge in the top bar. Singapore is 12-13 hours ahead of New York, so a 09:00-18:30 SGT class sits in the US overnight and pre-market sessions."
+        app_route: "trading"
+        preset: "Paper Trading > clock"
+        check: "You can explain why orders placed during class become extended-hours LIMIT orders."
+      - title: "Tour the Pipeline Map"
+        instruction: "Open the Pipeline Map and hover each of the 14 stages. Click 'Data ingestion' to see its recent activity."
+        app_route: "pipeline"
+        preset: "Pipeline Map"
+        check: "Data ingestion and Backtesting are green; you can name the stage that enforces the kill switch."
+        optional_python_prompt: "uv run trader status   # prints the configuration and which AI providers are available"
+
+  - id: 2
+    topic: 1
+    title: "Data validation vs TradingView (SGX:D05 and AAPL)"
+    objective: "Prove the app's prices are right: compare its bars with TradingView's Data Window and explain adjusted vs unadjusted prices."
+    expected: "A PASS / FAIL validation for SGX:D05 and NASDAQ:AAPL on 2025-12-31, with the dividend-adjustment factor explained."
+    course_link: "Topic 1.5; Lab 02"
+    steps:
+      - title: "Read TradingView's Data Window"
+        instruction: "In TradingView open NASDAQ:AAPL, daily timeframe, hover the bar of 2025-12-31 and read open/high/low/close in the Data Window (default settings: dividends NOT adjusted)."
+        app_route: "data?tab=reference&ref=AAPL"
+        preset: "Data > Validate vs TradingView (AAPL)"
+        check: "You have four numbers from TradingView."
+      - title: "Compare with RAW and ADJUSTED bars"
+        instruction: "Type your TradingView values into the 'Your TradingView reading' row. The app shows the difference against RAW (split-adjusted only) and ADJUSTED (split + dividend) bars."
+        app_route: "data?tab=reference&ref=AAPL"
+        preset: "Data > Validate vs TradingView"
+        check: "Verdict 'PASS - TradingView matches RAW' (to within 0.1%)."
+      - title: "Repeat for SGX:D05 (DBS)"
+        instruction: "Select SGX:D05. DBS pays large dividends, so the adjustment factor is far from 1."
+        app_route: "data?tab=reference&ref=D05.SI"
+        preset: "Data > Validate vs TradingView (D05)"
+        check: "You can explain why the ADJUSTED close is lower than the RAW close and why a model trained on adjusted prices must never be fed raw live prices."
+      - title: "Inspect the chart"
+        instruction: "Open the AAPL chart and compare its shape with TradingView."
+        app_route: "data?tab=chart&symbol=AAPL"
+        preset: "Data > Chart AAPL"
+        check: "The candles match TradingView's daily chart (allowing for the adjustment)."
+
+  - id: 3
+    topic: 1
+    title: "Data ingestion: multi-timeframe bars, data quality, headlines and sentiment"
+    objective: "Ingest bars from Alpaca / Twelve Data / yfinance (or the demo files), run the data-quality checks and score news sentiment."
+    expected: "A cached universe, a data-quality report and scored headlines with daily sentiment."
+    course_link: "Topic 1.5 (forms of data, big data); Lab 03"
+    steps:
+      - title: "Fetch data"
+        instruction: "Data > Instruments & ingestion: fetch AAPL with source 'auto' (Alpaca if keys, else the demo file). Online, try 'yfinance' or 'Twelve Data' too (Twelve Data needs TWELVEDATA_API_KEY)."
+        app_route: "data?tab=instruments&symbol=AAPL"
+        preset: "Data > Fetch AAPL"
+        check: "A toast reports the number of bars, the source and the quality status."
+      - title: "Read the data-quality report"
+        instruction: "Open Data quality for SPY. Look at missing values, duplicate timestamps, gaps over 4 days and big moves (possible unadjusted splits)."
+        app_route: "data?tab=quality&symbol=SPY"
+        preset: "Data > Quality SPY"
+        check: "Status OK or CHECK; the big-move dates include March 2020."
+      - title: "Switch timeframes"
+        instruction: "On the chart, switch SPY between 1Day, 1Week, 1Month and 1Hour."
+        app_route: "data?tab=chart&symbol=SPY&timeframe=1Week"
+        preset: "Data > Chart SPY weekly"
+        check: "Weekly and monthly bars are resampled from daily bars; hourly bars are US/Eastern."
+      - title: "Headlines and sentiment"
+        instruction: "Data > News & sentiment for NVDA: press 'Fetch & score headlines'. Online with NEWSAPI_KEY it calls NewsAPI.org; otherwise Alpaca News or the synthetic sample headlines. Try the sentiment box with your own sentence."
+        app_route: "data?tab=news&symbol=NVDA"
+        preset: "Data > News NVDA"
+        check: "Each headline has a VADER score between -1 and +1; the daily sentiment chart appears."
+
+  - id: 4
+    topic: 1
+    title: "Hypothesis test: SPY buy-the-dip after a losing streak"
+    objective: "Write H0 and H1 before looking at results and test them with a Welch t-test and a bootstrap CI."
+    expected: "A decision (SUPPORTED / NOT SUPPORTED) with p-value, edge in bps and a robustness grid."
+    course_link: "Topic 1.6; Lab 04"
+    steps:
+      - title: "Write the hypothesis card"
+        instruction: "Research > Hypothesis test. Keep signal 'losing streak' n = 3, horizon 1 day, alpha 0.05, min edge 3 bps. Read the H1 and H0 text."
+        app_route: "research/hypothesis"
+        preset: "Research > Hypothesis (SPY, losing streak 3)"
+        check: "H0 and H1 are written before you press Run."
+      - title: "Run the test"
+        instruction: "Press 'Run the test'."
+        app_route: "research/hypothesis"
+        check: "You can read the signal-day mean, the other-day mean, Welch t and p, and the 95% bootstrap CI."
+      - title: "Robustness and multiple testing"
+        instruction: "Read the robustness grid (other streak lengths and QQQ) and the Bonferroni alpha."
+        app_route: "research/hypothesis"
+        check: "You can explain why trying many variants inflates false positives."
+        optional_python_prompt: "from trader.core.stats import hypothesis_test\n# hypothesis_test(bars, {'type': 'losing_streak', 'n': 3}, horizon=1)"
+
+  # ------------------------------------------------------------------ Topic 2
+  - id: 5
+    topic: 2
+    title: "Indicators on the chart and Pine Script v6"
+    objective: "Plot SMA/EMA, Bollinger Bands, RSI and MACD and export a Pine Script v6 strategy for TradingView."
+    expected: "A chart with overlays and an oscillator pane, and a Pine Script pasted into TradingView whose values match."
+    course_link: "Topic 2.1, 2.4; Lab 05"
+    steps:
+      - title: "Overlay trend indicators"
+        instruction: "Data > Chart for SPY: toggle sma:50, sma:200, ema:20 and bollinger."
+        app_route: "data?tab=chart&symbol=SPY&overlays=sma:50,sma:200,bollinger"
+        preset: "Data > Chart SPY with SMA 50/200 and Bollinger"
+        check: "Lines draw over the candles (TradingView Lightweight Charts)."
+      - title: "Oscillators"
+        instruction: "Switch the lower pane between RSI(14) and MACD."
+        app_route: "data?tab=chart&symbol=SPY&osc=macd"
+        preset: "Data > Chart SPY MACD"
+        check: "RSI has 30/70 guide lines; the MACD histogram changes colour above and below 0."
+      - title: "Export Pine Script v6"
+        instruction: "Strategy Library > EMA crossover > Pine Script v6 > Copy. In TradingView open the Pine Editor, paste, 'Add to chart'."
+        app_route: "strategies?key=ema_cross"
+        preset: "Strategies > EMA crossover"
+        check: "TradingView shows the two EMAs; their last values match the app's chart."
+
+  - id: 6
+    topic: 2
+    title: "Strategy prototype: TradingView Strategy Tester vs the app"
+    objective: "Run the same MA-crossover in TradingView's Strategy Tester and in the app, reconcile the results, and try TradingView Paper Trading."
+    expected: "Trade counts and net profit that agree within the expected differences (fills, costs, data)."
+    course_link: "Topic 2.3; Lab 06"
+    steps:
+      - title: "Backtest the SMA 50/200 crossover in the app"
+        instruction: "Run the preset backtest: SMA crossover 50/200 on SPY, Alpaca-style costs, next-bar-open fills."
+        app_route: "backtest?strategy=sma_cross&symbols=SPY&fast=50&slow=200&costs=alpaca_retail"
+        preset: "Backtest SPY SMA 50/200, Alpaca costs"
+        check: "About 5 round trips 2018-2025; note the net CAGR and Sharpe."
+      - title: "Run it in TradingView"
+        instruction: "Export the SMA crossover Pine Script and add it to an AMEX:SPY daily chart. Open the Strategy Tester."
+        app_route: "strategies?key=sma_cross"
+        preset: "Strategies > SMA crossover > Pine"
+        check: "The Strategy Tester list of trades has the same entry dates (TradingView also fills on the next bar's open)."
+      - title: "Reconcile and paper trade on TradingView"
+        instruction: "Explain any differences (adjusted vs raw data, commission per order, slippage ticks). Optionally connect TradingView Paper Trading and place one order from the chart."
+        app_route: "backtest?strategy=sma_cross&symbols=SPY&fast=50&slow=200&costs=alpaca_retail"
+        check: "You can list at least two reasons the two backtests differ."
+
+  - id: 7
+    topic: 2
+    title: "Strategy library: trend, mean reversion, momentum and breakout"
+    objective: "Pick and customise one strategy from each family and compare them after costs."
+    expected: "Four backtests with tuned parameters and an explanation of when each family works."
+    course_link: "Topic 2.2; Lab 07"
+    steps:
+      - title: "Trend: EMA 20/50 on SPY"
+        instruction: "Run the preset."
+        app_route: "backtest?strategy=ema_cross&symbols=SPY&fast=20&slow=50&costs=alpaca_retail"
+        preset: "Backtest SPY EMA 20/50, Alpaca costs"
+        check: "Note Sharpe and max drawdown vs buy-and-hold."
+      - title: "Mean reversion: Bollinger on KO"
+        instruction: "Run Bollinger mean reversion on KO; then change k from 2.0 to 1.5."
+        app_route: "backtest?strategy=bollinger_reversion&symbols=KO&window=20&k=2"
+        preset: "Backtest KO Bollinger 20/2"
+        check: "Win rate is high, but losses are larger than wins - 'many small wins, rare big losses'."
+      - title: "Momentum and breakout"
+        instruction: "Run time-series momentum (126 bars) on QQQ and the Donchian 20/10 breakout on QQQ."
+        app_route: "backtest?strategy=donchian_breakout&symbols=QQQ&entry=20&exit=10"
+        preset: "Backtest QQQ Donchian 20/10"
+        check: "Open the 'Price & trades' tab: buy arrows follow 20-day highs."
+      - title: "Read each strategy's explanation"
+        instruction: "Strategy Library: open each card and read How it works / Rule / Works best when / Watch out for."
+        app_route: "strategies"
+        check: "You can say which family suits a trending market and which a range-bound one."
+
+  - id: 8
+    topic: 2
+    title: "Paper orders: order types, time in force and the order lifecycle"
+    objective: "Place market, limit, stop and bracket paper orders, including an extended-hours limit order, and follow each order's lifecycle."
+    expected: "A blotter with filled, working, queued and cancelled orders and the risk checks for each."
+    course_link: "Topic 2.4; Lab 08"
+    steps:
+      - title: "Market order in the regular session"
+        instruction: "Paper Trading > Order ticket: BUY 10 SPY, type market, Session (sim) = regular. Send."
+        app_route: "trading?tab=ticket"
+        preset: "Paper Trading > Order ticket"
+        check: "Result ACCEPTED and status filled; every risk check is listed."
+      - title: "Extended-hours limit order (Singapore class hours)"
+        instruction: "Same ticket, type auto, Session (sim) = overnight. The app converts it to a LIMIT order, time in force DAY, extended_hours=True, priced off the quote ± 25 bps."
+        app_route: "trading?tab=ticket"
+        check: "The order shows 'limit day ext-hrs'. A market order in the overnight session is blocked."
+      - title: "Bracket order"
+        instruction: "BUY 5 SPY, regular session, with a take-profit and stop-loss price. Then open the Orders tab and expand the status to see the lifecycle and the two exit legs (held until the parent fills, then one-cancels-other)."
+        app_route: "trading?tab=orders"
+        check: "Two legs appear: a limit (take-profit) and a stop (stop-loss)."
+      - title: "Queue while closed and cancel"
+        instruction: "Session = closed: the order becomes a GTC limit that queues for the next session. Cancel it from the Orders tab."
+        app_route: "trading?tab=orders"
+        check: "Status moves accepted -> canceled."
+        optional_python_prompt: "With Alpaca keys: TradingClient(api_key, secret_key, paper=True).submit_order(LimitOrderRequest(symbol='SPY', qty=1, side=OrderSide.BUY, time_in_force=TimeInForce.DAY, limit_price=..., extended_hours=True))"
+
+  - id: 9
+    topic: 2
+    title: "Performance analytics: every metric vs buy-and-hold"
+    objective: "Read the full metrics table and compare a strategy with buy-and-hold."
+    expected: "A metrics table you can explain line by line."
+    course_link: "Topic 2.5; Lab 09"
+    steps:
+      - title: "Open the analytics"
+        instruction: "Analytics: choose the EMA 10/30 seeded backtest. Hover every metric for its formula."
+        app_route: "analytics"
+        preset: "Analytics"
+        check: "You can define Sharpe, Sortino, Calmar, max drawdown, profit factor, expectancy, exposure and turnover."
+      - title: "Compare with buy-and-hold"
+        instruction: "Tick the EMA backtest and 'Buy and hold SPY' and press Compare."
+        app_route: "analytics"
+        check: "Buy-and-hold has higher CAGR but a deeper drawdown; the strategy has lower exposure."
+      - title: "Glossary"
+        instruction: "Open Help & Glossary > Metric glossary."
+        app_route: "help?tab=glossary"
+        check: "Each formula matches the course slides."
+
+  # ------------------------------------------------------------------ Topic 3
+  - id: 10
+    topic: 3
+    title: "Strategy search: grid search, out-of-sample ranking and the decay heatmap"
+    objective: "Grid-search SMA crossover parameters in-sample and measure how the ranking decays out of sample."
+    expected: "IS and OOS Sharpe heatmaps, a rank correlation and a robust parameter region."
+    course_link: "Topic 3.1, 3.4; Lab 10"
+    steps:
+      - title: "Run the grid"
+        instruction: "Research > Strategy search: SMA crossover on SPY, in-sample to 2021-12-31, Alpaca costs. Press Search."
+        app_route: "research/grid?strategy=sma_cross&symbol=SPY"
+        preset: "Research > Grid SPY SMA cross"
+        check: "About 24 parameter sets; two heatmaps appear."
+      - title: "Read the decay"
+        instruction: "Compare the in-sample and out-of-sample heatmaps and the IS->OOS rank correlation."
+        app_route: "research/grid"
+        check: "You can explain why the single best in-sample cell is usually not the best out of sample, and why a robust region is preferred."
+      - title: "Walk-forward"
+        instruction: "Research > Walk-forward: SMA crossover on SPY (3-year train, 1-year test)."
+        app_route: "research/walkforward?strategy=sma_cross"
+        preset: "Research > Walk-forward SPY"
+        check: "The stitched out-of-sample equity curve and the parameters chosen in each window."
+
+  - id: 11
+    topic: 3
+    title: "ML signal: walk-forward classifiers"
+    objective: "Train logistic regression, random forest and XGBoost walk-forward and trade P(up) > threshold."
+    expected: "Accuracy / AUC table, feature importance and a net-of-cost backtest of the ML signal."
+    course_link: "Topic 3.2; Lab 11"
+    steps:
+      - title: "Train the classifiers"
+        instruction: "Research > ML models on SPY, threshold 0.55."
+        app_route: "research/ml"
+        preset: "Research > ML SPY"
+        check: "AUC close to 0.5 - daily direction is close to a coin toss; read the verdict."
+      - title: "Backtest an ML strategy"
+        instruction: "Backtest 'ML: XGBoost (walk-forward)' on SPY."
+        app_route: "backtest?strategy=ml_xgboost&symbols=SPY"
+        preset: "Backtest SPY XGBoost"
+        check: "Judge the model by the net-of-cost strategy, not by accuracy."
+      - title: "Check for leakage"
+        instruction: "Research > Diagnostics on 'ML: logistic regression'."
+        app_route: "research/diagnostics?strategy=ml_logistic"
+        check: "Look-ahead check PASS: refits use only past bars."
+        optional_python_prompt: "from trader.core.ml import walk_forward_proba\n# proba, folds = walk_forward_proba(bars, 'xgboost', min_train=504, retrain_every=126)"
+
+  - id: 12
+    topic: 3
+    title: "Regime filter: PCA and K-means"
+    objective: "Find market regimes with walk-forward K-means and gate a signal in the high-volatility regime."
+    expected: "PCA explained variance, a regime timeline and gated vs ungated performance."
+    course_link: "Topic 3.3; Lab 12"
+    steps:
+      - title: "Analyse regimes"
+        instruction: "Research > Regimes: SPY, 3 clusters, gate the EMA crossover."
+        app_route: "research/regime"
+        preset: "Research > Regimes SPY"
+        check: "PC1 explains the largest share of variance (the market factor); the 2020 crash is in the stress regime."
+      - title: "Backtest the regime-filtered strategy"
+        instruction: "Backtest 'Regime-filtered strategy (K-means gate)'."
+        app_route: "backtest?strategy=regime_filtered&symbols=SPY"
+        preset: "Backtest SPY regime filter"
+        check: "Compare max drawdown with the ungated EMA crossover."
+
+  - id: 13
+    topic: 3
+    title: "A/B test two strategy variants"
+    objective: "Decide statistically between two variants before moving capital."
+    expected: "Welch and paired t-tests, a bootstrap Sharpe CI and a decision with a multiple-testing caution."
+    course_link: "Topic 3.5; Lab 13"
+    steps:
+      - title: "Run the A/B test"
+        instruction: "Research > A/B test: A = Trend filter, B = Dip buy, SPY, alpha 0.05, 20 variants tried."
+        app_route: "research/abtest?a=trend_filter&b=dip_buy"
+        preset: "Research > A/B trend_filter vs dip_buy"
+        check: "Read the decision; if the CI contains 0, do not reject H0."
+      - title: "Your own variants"
+        instruction: "A = EMA crossover {\"fast\": 10, \"slow\": 30}, B = EMA crossover {\"fast\": 20, \"slow\": 50}."
+        app_route: "research/abtest?a=ema_cross&b=ema_cross"
+        check: "You can explain the Bonferroni-adjusted alpha."
+
+  - id: 14
+    topic: 3
+    title: "Pairs trading: cointegration screen and a hedged spread"
+    objective: "Screen pairs for cointegration and backtest a market-neutral KO/PEP spread."
+    expected: "An Engle-Granger screen and a pairs backtest with beta near zero."
+    course_link: "Topic 3.6; Lab 14"
+    steps:
+      - title: "Screen the pairs"
+        instruction: "Research > Pairs screen (formation to 2022-12-31)."
+        app_route: "research/pairs"
+        preset: "Research > Pairs screen"
+        check: "High correlation does not imply cointegration - compare the corr and ADF columns."
+      - title: "Backtest KO/PEP"
+        instruction: "Backtest the pairs strategy on KO, PEP (both legs, short leg allowed, borrow cost charged)."
+        app_route: "backtest?strategy=pairs_cointegration&symbols=KO,PEP"
+        preset: "Backtest KO/PEP pairs"
+        check: "Beta to SPY near 0 in 'All metrics'; the trade list has long and short legs."
+
+  # ------------------------------------------------------------------ Topic 4
+  - id: 15
+    topic: 4
+    title: "Backtest engine: cost models and break-even cost"
+    objective: "Run the same strategy under four cost models and find its break-even cost."
+    expected: "Gross vs net CAGR, a cost breakdown and the break-even bps."
+    course_link: "Topic 4.2; Lab 15"
+    steps:
+      - title: "Zero vs Alpaca vs high-cost"
+        instruction: "Backtest Dip buy on SPY three times with cost model zero, alpaca_retail and high_cost."
+        app_route: "backtest?strategy=dip_buy&symbols=SPY&costs=high_cost"
+        preset: "Backtest SPY dip-buy, high-cost route"
+        check: "The 'Costs: gross vs net' tab shows the drag; dip-buy trades often, so costs bite."
+      - title: "Break-even and execution timing"
+        instruction: "Read the break-even one-way cost; then switch Execution to 'next bar close' and compare."
+        app_route: "backtest?strategy=dip_buy&symbols=SPY&execution=next_close"
+        check: "A strategy whose break-even is only a few bps is fragile."
+      - title: "Stops and sizing"
+        instruction: "Open 'position sizing, stop-loss, take-profit' and run EMA 20/50 with a 5% stop and volatility-target sizing."
+        app_route: "backtest?strategy=ema_cross&symbols=SPY&fast=20&slow=50&stop_loss_pct=5&sizing=vol_target"
+        check: "The trade list shows stop_loss exits."
+
+  - id: 16
+    topic: 4
+    title: "Forward test: a scheduled paper-trading bot with a kill switch"
+    objective: "Create a bot, run it on a schedule, watch orders, positions and P&L live, and halt it with the kill switch."
+    expected: "A bot equity curve, a blotter of its orders, a backtest-vs-forward comparison and a tested kill switch."
+    course_link: "Topic 4.3; Lab 16"
+    steps:
+      - title: "Create the bot"
+        instruction: "Paper Trading > + New bot: EMA crossover 10/30 on SPY, schedule 'every 10s', simulator broker, replay from 2025-01-02."
+        app_route: "trading?new=1&strategy=ema_cross"
+        preset: "Paper Trading > New bot (EMA cross)"
+        check: "The bot appears with status stopped."
+      - title: "Start it and watch"
+        instruction: "Press Start (the worker must run: `uv run trader worker` or `uv run trader serve --with-worker`). Every cycle replays one trading day: it sees bars to yesterday's close and its orders fill at today's open. Or press 'Run one cycle now' repeatedly."
+        app_route: "trading"
+        check: "Equity curve grows cycle by cycle; the Pipeline Map path lights up during each cycle."
+      - title: "Kill switch"
+        instruction: "Press the bot's Kill switch, then try 'Run one cycle now'. Release it. Try the global kill switch in the top bar too."
+        app_route: "trading"
+        check: "Cycles report 'kill switch ON - no orders sent'; the Risk stage turns red on the Pipeline Map."
+      - title: "Backtest vs forward"
+        instruction: "Press Compare in 'Backtest vs forward test'."
+        app_route: "trading"
+        check: "The curves track closely; you can explain the remaining gap (whole shares, fills, timing)."
+
+  - id: 17
+    topic: 4
+    title: "TradingView webhook alerts to the bot"
+    objective: "Send TradingView alerts to the app's webhook and see them pass validation, signal confirmation and risk into paper orders."
+    expected: "7 simulated alerts handled as expected and the audit log."
+    course_link: "Topic 4.1; Lab 17"
+    steps:
+      - title: "Copy the alert template"
+        instruction: "Integrations > TradingView webhook: copy the URL and the JSON alert message (reveal the secret only on your own machine)."
+        app_route: "integrations"
+        preset: "Integrations > TradingView webhook"
+        check: "You know which placeholders TradingView fills in."
+      - title: "Run the self-test"
+        instruction: "Press 'Run self-test (7 simulated alerts)'."
+        app_route: "integrations"
+        check: "7/7: valid buy and sell (200), wrong secret (401), symbol not allowed and qty too large (422), malformed (400), retry ignored (200 duplicate)."
+      - title: "Real alerts (paid TradingView plan)"
+        instruction: "Expose the app with `ngrok http 8000`, create an alert on the exported Pine strategy with the webhook URL https://<tunnel>/api/webhooks/tradingview and the message. Optionally tick 'Reject alerts that disagree with the app's own signal'."
+        app_route: "integrations"
+        check: "The alert appears in the audit log and its order in Paper Trading > Orders (source webhook)."
+
+  - id: 18
+    topic: 4
+    title: "Diagnose bias: look-ahead, cost drag, overfitting, survivorship"
+    objective: "Run the automated diagnostics on a deliberately biased strategy, fix it, and re-run."
+    expected: "A FAIL on the biased exhibit, a PASS / WARN table for the fixed version and a verdict."
+    course_link: "Topic 4.4; Lab 18"
+    steps:
+      - title: "Diagnose the biased exhibit"
+        instruction: "Research > Diagnostics on 'Lab 18 exhibit: biased smoothed momentum' (seeded custom strategy)."
+        app_route: "research/diagnostics?strategy=custom_lab18_biased_smoothed_momentum"
+        preset: "Research > Diagnostics (Lab 18 exhibit)"
+        check: "Look-ahead (features) FAIL: rolling(center=True) uses future bars. Verdict BLOCK."
+      - title: "Fix it in the Strategy Builder"
+        instruction: "Open the exhibit in the Strategy Builder, change center=True to center=False, Validate, Save."
+        app_route: "builder?key=custom_lab18_biased_smoothed_momentum"
+        preset: "Strategy Builder (exhibit)"
+        check: "The validation's look-ahead check now passes."
+      - title: "Re-run diagnostics"
+        instruction: "Diagnose the fixed strategy; compare the same-bar vs next-bar Sharpe and the cost-drag row."
+        app_route: "research/diagnostics?strategy=custom_lab18_biased_smoothed_momentum"
+        check: "No FAIL on look-ahead; cost drag and overfitting WARN explained."
+        optional_python_prompt: "smooth = data['close'].rolling(5, center=True).mean()   # BUG: uses t+1 and t+2\nsmooth = data['close'].rolling(5).mean()               # FIX: past prices only"
+
+  - id: 19
+    topic: 4
+    title: "Performance report: tearsheet and backtest vs forward"
+    objective: "Produce a one-page tearsheet and explain the gap between backtest and forward test."
+    expected: "A PDF tearsheet and a written explanation of the backtest-vs-forward differences."
+    course_link: "Topic 4.5; Lab 19"
+    steps:
+      - title: "Export the tearsheet"
+        instruction: "Backtest page (or Analytics) > PDF tearsheet for your best backtest; also export the equity and trades CSV."
+        app_route: "analytics"
+        preset: "Analytics > PDF tearsheet"
+        check: "The PDF has equity vs benchmark, drawdown, monthly heatmap, metrics and the cost table."
+      - title: "Backtest vs forward"
+        instruction: "Analytics: select your Lab 16 bot under 'Bot (backtest vs forward)'."
+        app_route: "analytics"
+        check: "Explain every material gap (fills, sizing, costs, timing)."
+      - title: "Draw insights"
+        instruction: "Monthly heatmap: in which regimes did the strategy earn its returns, what drove its drawdowns?"
+        app_route: "analytics"
+        check: "Two or three insights, not just numbers."
+
+  - id: 20
+    topic: 4
+    title: "Capstone: end-to-end pipeline, multi-agent desk and your own strategy"
+    objective: "Run the whole pipeline end to end, get a human-approved proposal from the multi-agent desk, switch on the always-on agent, and write, backtest and forward-test your own Python strategy."
+    expected: "A Pipeline Map with every stage green, an approved agent proposal with its decision trace, and your custom strategy trading on paper."
+    course_link: "Topics 1-4; Lab 20"
+    steps:
+      - title: "Run the multi-agent desk"
+        instruction: "AI Agents > Run multi-agent analysis on NVDA, AAPL, SPY. Read each agent's card: three analysts, the two-round bull/bear debate, the trader, the risk manager, the hard-limit gate (code) and the portfolio manager."
+        app_route: "agents"
+        preset: "AI Agents > desk"
+        check: "Eight agent entries per symbol plus the code gate; the brain badge shows which provider or rules answered."
+      - title: "Human approval"
+        instruction: "Approve (or reject) the proposals. Approved buys become paper bracket orders in the regular session or extended-hours limit orders overnight."
+        app_route: "agents"
+        check: "Run status 'executed' and the orders visible in Paper Trading (source agent)."
+      - title: "Always-on agent"
+        instruction: "AI Agents > Always-on agent: enable it with a 60-minute wake-up (the worker must run), or press 'Wake it now'. Check Memory."
+        app_route: "agents"
+        check: "A new always_on run and memory notes appear."
+      - title: "Write your own strategy"
+        instruction: "Strategy Builder: start from a template, write your idea, Validate (look-ahead check), Save."
+        app_route: "builder?template=ema_rsi"
+        preset: "Strategy Builder (EMA + RSI template)"
+        check: "Your strategy appears in the Strategy Library with an auto-generated parameter form."
+      - title: "Backtest, diagnose and forward-test it"
+        instruction: "Backtest it, run Diagnostics, then create a paper bot for it and start it."
+        app_route: "trading?new=1"
+        check: "Pipeline Map > Strategy lifecycle for your strategy shows the gates it passed."
+      - title: "End-to-end on the Pipeline Map"
+        instruction: "Open the Pipeline Map and press 'Run a bot cycle'. Then switch to 'Strategy lifecycle'."
+        app_route: "pipeline"
+        preset: "Pipeline Map"
+        check: "All 14 stages have run; you can walk a colleague through each stage."

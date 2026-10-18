@@ -1,0 +1,56 @@
+<div x-data="integrationsPage()" class="space-y-4">
+  <div class="rounded-lg bg-slate-100 dark:bg-slate-800/60 p-3 text-sm">Keys live in your <code>.env</code> file (copy <code>.env.example</code>), never in the database; this page only shows masked values. Edit <code>.env</code> and restart the app to change them. <b>Paper trading only</b> - Alpaca is always used with <code>paper=True</code>.</div>
+  <div class="grid lg:grid-cols-2 gap-4">
+    <template x-for="it in items.filter(i => i.key !== 'tradingview')" :key="it.key">
+      <div class="card space-y-2">
+        <div class="flex items-center gap-2"><div class="font-semibold flex-1" x-text="it.name"></div><span class="badge" :class="it.configured ? 'badge-ok' : 'badge-muted'" x-text="it.configured ? 'connected' : 'not configured'"></span></div>
+        <div class="text-sm muted" x-text="it.help"></div>
+        <div class="grid grid-cols-1 gap-1 text-xs"><template x-for="(v,k) in it.fields"><div class="flex gap-2"><span class="muted w-44 shrink-0 mono" x-text="k"></span><span class="mono break-all" x-text="v || '(blank)'"></span></div></template></div>
+        <div x-show="it.mode" class="text-xs" x-text="it.mode"></div>
+        <template x-if="it.login_command"><div class="flex items-center gap-2 text-xs"><code class="flex-1 p-1.5 break-all" x-text="it.login_command"></code><button class="btn btn-xs" @click="QTS.copy(it.login_command)">Copy</button></div></template>
+        <template x-if="it.terms"><details class="text-xs"><summary class="cursor-pointer font-semibold">Provider terms (read before use)</summary>
+          <p class="mt-1" x-text="it.terms.summary"></p>
+          <template x-for="q in it.terms.quotes"><blockquote class="border-l-2 border-slate-300 pl-2 my-1 italic muted" x-text="'“' + q + '”'"></blockquote></template>
+          <div class="mt-1"><template x-for="u in it.terms.sources"><div><a class="link" :href="u" target="_blank" rel="noopener" x-text="u"></a></div></template></div></details></template>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-xs" @click="test(it.key)" :disabled="busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Test connection</button>
+          <span x-show="results[it.key]" class="text-xs" :class="results[it.key] && results[it.key].ok ? 'pos' : 'neg'" x-text="results[it.key] && results[it.key].message"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- TradingView -->
+  <div class="card space-y-3" x-show="tpl">
+    <div class="card-title">TradingView webhook <span class="card-sub">alert → signal confirmation → risk checks → paper order</span></div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="space-y-2 text-sm">
+        <div><span class="label">Webhook URL</span><div class="flex gap-2"><code class="flex-1 p-1.5 break-all" x-text="origin + (tpl && tpl.path)"></code><button class="btn btn-xs" @click="QTS.copy(origin + tpl.path)">Copy</button></div>
+          <div class="help">TradingView only posts to public HTTPS URLs on port 80/443: expose the app with a tunnel (e.g. <code>ngrok http 8000</code>) and use <code>https://&lt;tunnel&gt;/api/webhooks/tradingview</code>.</div></div>
+        <div><span class="label">Alert message (paste into the alert's Message box)</span>
+          <pre class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-2 overflow-x-auto" x-text="tpl && tpl.message"></pre>
+          <div class="flex gap-2"><button class="btn btn-xs" @click="toggleReveal()" x-text="reveal ? 'Hide secret' : 'Reveal secret'"></button><button class="btn btn-xs" @click="QTS.copy(tpl.message)">Copy message</button>
+            <span class="text-xs muted" x-text="'secret ' + (tpl && tpl.secret_source === 'env' ? 'from WEBHOOK_SECRET in .env' : 'generated locally (set WEBHOOK_SECRET in .env to choose your own)')"></span></div></div>
+        <ul class="text-xs muted list-disc ml-4"><template x-for="n in (tpl && tpl.notes) || []"><li x-text="n"></li></template></ul>
+        <a class="link text-xs" href="#/strategies">Pine Script v6 export with alert_message → Strategy Library</a>
+      </div>
+      <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div><label class="label">Confirm with strategy</label><select class="input" x-model="wh.strategy_key"><template x-for="s in strategies.filter(s => !s.multi_asset && !['execution','market_making'].includes(s.kind))"><option :value="s.key" x-text="s.name"></option></template></select></div>
+          <div><label class="label">Max qty per alert</label><input class="input" type="number" x-model="wh.max_order_qty"></div>
+          <div class="col-span-2"><label class="label">Allowed symbols</label><input class="input" :value="Array.isArray(wh.allowed_symbols) ? wh.allowed_symbols.join(', ') : wh.allowed_symbols" @input="wh.allowed_symbols = $event.target.value"></div>
+          <label class="col-span-2 inline-flex items-center gap-2"><input type="checkbox" x-model="wh.require_signal_agreement"> Reject alerts that disagree with the app's own signal (HTTP 409)</label>
+        </div>
+        <div class="flex gap-2"><button class="btn-primary btn-xs" @click="saveWh()">Save</button>
+          <button class="btn btn-xs" @click="test('tradingview')" :disabled="busy.tradingview"><span x-show="busy.tradingview" class="spinner"></span>Run self-test (7 simulated alerts)</button></div>
+        <template x-if="results.tradingview"><div class="text-xs space-y-0.5"><div class="font-semibold" :class="results.tradingview.ok ? 'pos' : 'neg'" x-text="results.tradingview.message"></div>
+          <template x-for="r in results.tradingview.detail || []"><div><span class="badge" :class="r.ok ? 'badge-ok' : 'badge-err'" x-text="'HTTP ' + r.http"></span> <span x-text="r.test + ' - ' + (r.result || '') + (r.detail ? ': ' + r.detail : '')"></span></div></template></div></template>
+      </div>
+    </div>
+    <div class="scroll-x"><div class="text-xs font-semibold mb-1">Recent alerts (audit log, secret redacted)</div>
+      <table class="t"><thead><tr><th>Time</th><th>Client</th><th>Alert id</th><th>Ticker</th><th>Action</th><th class="num">Qty</th><th>HTTP</th><th>Result</th><th>Signal</th><th>Detail</th></tr></thead>
+        <tbody><template x-for="a in alerts" :key="a.id"><tr><td class="text-xs" x-text="a.received_at.slice(0,19)"></td><td class="text-xs" x-text="a.client"></td><td class="text-xs mono" x-text="a.alert_id"></td><td x-text="a.ticker"></td><td x-text="a.action"></td><td class="num" x-text="a.qty"></td>
+          <td><span class="badge" :class="a.http===200 ? 'badge-ok' : 'badge-warn'" x-text="a.http"></span></td><td class="text-xs" x-text="a.result"></td><td class="num" x-text="a.pipeline_signal"></td><td class="text-xs" x-text="a.detail"></td></tr></template></tbody></table>
+      <div x-show="!alerts.length" class="text-xs muted">No alerts received yet.</div></div>
+  </div>
+</div>

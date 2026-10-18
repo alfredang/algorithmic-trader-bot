@@ -1,0 +1,159 @@
+<div x-data="backtestPage()" class="grid xl:grid-cols-4 gap-4">
+  <!-- form -->
+  <div class="xl:col-span-1 space-y-3">
+    <div class="card space-y-3">
+      <div class="card-title">Strategy</div>
+      <select class="input" :value="key" @change="pick($event.target.value)">
+        <template x-for="g in groups()" :key="g[0]"><optgroup :label="g[0]"><template x-for="s in g[1]" :key="s.key"><option :value="s.key" x-text="s.name" :selected="s.key===key"></option></template></optgroup></template>
+      </select>
+      <p class="text-xs muted" x-show="desc" x-text="desc && desc.summary"></p>
+      <div><label class="label">Symbols <span class="qmark" title="One symbol for single-asset strategies; several for multi-asset (cross-sectional momentum, pairs)">?</span></label><input class="input" x-model="symbols"></div>
+      <template x-if="desc"><div class="grid grid-cols-2 gap-2">
+        <template x-for="p in desc.params_schema" :key="p.name">
+          <div :class="p.type==='bool' ? 'col-span-2' : ''">
+            <label class="label" :title="p.help" x-text="p.name.replaceAll('_',' ')"></label>
+            <template x-if="p.type==='bool'"><label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="params[p.name]"> <span class="text-xs muted" x-text="p.help"></span></label></template>
+            <template x-if="p.type==='choice'"><select class="input" x-model="params[p.name]"><template x-for="c in p.choices"><option x-text="c"></option></template></select></template>
+            <template x-if="!['bool','choice'].includes(p.type)"><input class="input" type="number" :step="p.step || (p.type==='int' ? 1 : 0.01)" :min="p.min" :max="p.max" x-model="params[p.name]" :title="p.help"></template>
+          </div>
+        </template>
+      </div></template>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="label">Start</label><input class="input" type="date" x-model="start"></div>
+        <div><label class="label">End</label><input class="input" type="date" x-model="end"></div>
+      </div>
+      <div x-show="desc && desc.kind==='execution'"><label class="label">Session date (SPY hourly)</label><input class="input" type="date" x-model="day"></div>
+    </div>
+    <div class="card space-y-3" x-show="desc && !['execution','market_making'].includes(desc.kind)">
+      <div class="card-title">Costs & execution</div>
+      <div><label class="label">Cost model <span class="qmark" title="Commission, half-spread, slippage, SEC Section 31 / FINRA TAF fees on sells, borrow cost on shorts">?</span></label>
+        <select class="input" x-model="cfg.costs" :disabled="!!customCost"><template x-for="(v,k) in presets"><option :value="k" x-text="v.name + ' (' + k + ')'"></option></template></select>
+        <button class="btn-link text-xs" @click="useCustomCost()" x-text="customCost ? 'use a preset' : 'custom cost model…'"></button></div>
+      <template x-if="customCost"><div class="grid grid-cols-2 gap-2 text-xs">
+        <template x-for="k in ['commission_per_share','commission_bps','min_commission','spread_bps','slippage_bps','borrow_bps_annual']"><div><label class="label" x-text="k.replaceAll('_',' ')"></label><input class="input" type="number" step="0.001" x-model.number="customCost[k]"></div></template>
+      </div></template>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="label" title="Signals decided at the close of bar t fill at the next bar's open (default, like TradingView) or close">Execution</label><select class="input" x-model="cfg.execution"><option value="next_open">next bar open</option><option value="next_close">next bar close</option></select></div>
+        <div><label class="label">Benchmark</label><input class="input" x-model="benchmark"></div>
+      </div>
+      <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="cfg.allow_short"> Allow short (long/short)</label>
+      <button class="btn-link text-xs" @click="showAdv=!showAdv" x-text="showAdv ? 'hide sizing & stops' : 'position sizing, stop-loss, take-profit…'"></button>
+      <div x-show="showAdv" class="space-y-2">
+        <div><label class="label">Position sizing</label><select class="input" x-model="cfg.sizing"><option value="percent_equity">% of equity</option><option value="fixed_notional">fixed notional ($)</option><option value="vol_target">volatility target</option><option value="atr_risk">ATR risk per trade</option></select></div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div x-show="cfg.sizing==='percent_equity'"><label class="label">Size (fraction of equity)</label><input class="input" type="number" step="0.05" x-model.number="cfg.size_pct"></div>
+          <div x-show="cfg.sizing==='fixed_notional'"><label class="label">Notional $</label><input class="input" type="number" x-model.number="cfg.fixed_notional"></div>
+          <div x-show="cfg.sizing==='vol_target'"><label class="label">Target vol (ann.)</label><input class="input" type="number" step="0.01" x-model.number="cfg.vol_target"></div>
+          <div x-show="cfg.sizing==='atr_risk'"><label class="label">Risk per trade</label><input class="input" type="number" step="0.005" x-model.number="cfg.atr_risk_pct"></div>
+          <div x-show="cfg.sizing==='atr_risk'"><label class="label">ATR multiple</label><input class="input" type="number" step="0.5" x-model.number="cfg.atr_mult"></div>
+          <div x-show="['vol_target','atr_risk'].includes(cfg.sizing)"><label class="label">Max leverage</label><input class="input" type="number" step="0.1" x-model.number="cfg.max_leverage"></div>
+          <div><label class="label">Stop-loss %</label><input class="input" type="number" step="0.5" x-model="cfg.stop_loss_pct" placeholder="none"></div>
+          <div><label class="label">Take-profit %</label><input class="input" type="number" step="0.5" x-model="cfg.take_profit_pct" placeholder="none"></div>
+          <div><label class="label">Initial capital</label><input class="input" type="number" x-model.number="cfg.initial_capital"></div>
+          <div class="flex items-end"><label class="inline-flex items-center gap-2"><input type="checkbox" x-model="cfg.whole_shares"> whole shares</label></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary w-full justify-center py-2.5" @click="run()" :disabled="busy || !desc"><span x-show="busy" class="spinner"></span><span x-text="busy ? 'Running…' : 'Run backtest'"></span></button>
+    <div class="card">
+      <div class="card-title">History</div>
+      <div class="max-h-72 overflow-y-auto text-sm">
+        <template x-for="h in history" :key="h.id"><button class="w-full text-left py-1.5 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-1" @click="load(h.id)" :class="res && res.id===h.id ? 'font-semibold' : ''">
+          <div class="flex"><span class="flex-1 truncate" x-text="'#' + h.id + ' ' + h.name"></span><span class="badge" :class="QTS.statusBadge(h.status)" x-text="h.status" x-show="h.status!=='done'"></span></div>
+          <div class="text-xs muted" x-text="h.kind==='signal' || h.kind==='portfolio' || h.kind==='agentic' ? ('Sharpe ' + QTS.num(h.metrics && h.metrics.sharpe) + ' · CAGR ' + QTS.pct(h.metrics && h.metrics.cagr)) : h.kind"></div></button></template>
+      </div>
+    </div>
+  </div>
+
+  <!-- results -->
+  <div class="xl:col-span-3 space-y-3">
+    <div x-show="!res" class="empty py-16">Pick a strategy, set its parameters and costs, and press <b>Run backtest</b>.<br><span class="text-xs">The engine executes every signal on the next bar (no look-ahead) and charges commission, spread, slippage, SEC/FINRA fees and borrow.</span></div>
+    <template x-if="res">
+      <div class="space-y-3">
+        <div class="card flex flex-wrap items-center gap-2">
+          <div class="flex-1 min-w-[14rem]"><div class="font-semibold" x-text="'#' + res.id + ' ' + res.name"></div>
+            <div class="text-xs muted" x-text="res.symbols.join(', ') + ' · ' + res.timeframe + ' · ' + JSON.stringify(res.params) + ' · costs: ' + ((res.config && res.config.costs && res.config.costs.name) || '') + ' · ' + ((res.config||{}).execution||'') + ' · ' + res.duration_ms + ' ms'"></div></div>
+          <a class="btn btn-xs" :href="'/api/backtests/' + res.id + '/export.csv'">Equity CSV</a>
+          <a class="btn btn-xs" :href="'/api/backtests/' + res.id + '/export.csv?what=trades'">Trades CSV</a>
+          <a class="btn btn-xs" :href="'/api/backtests/' + res.id + '/tearsheet.pdf'">PDF tearsheet</a>
+          <a class="btn btn-xs" :href="'#/analytics?backtest=' + res.id">Analytics</a>
+          <button class="btn-primary btn-xs" x-show="!['execution','market_making'].includes(kind)" @click="createBot()">Forward-test as a bot</button>
+        </div>
+
+        <!-- signal / portfolio results -->
+        <template x-if="!['execution','market_making'].includes(kind)">
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              <template x-for="k in ['total_return','cagr','sharpe','sortino','calmar','max_drawdown','volatility','win_rate','profit_factor','expectancy','trades','exposure','turnover','break_even_bps']" :key="k">
+                <div class="card !p-2.5 kpi" :title="QTS.metricTip(k)"><span class="k"><span x-text="QTS.label(k)"></span><span class="qmark">?</span></span>
+                  <span class="v text-base" :class="['total_return','cagr','expectancy'].includes(k) ? QTS.cls(res.metrics[k]) : ''" x-text="QTS.fmtMetric(k, res.metrics[k])"></span>
+                  <span class="text-[10px] muted" x-show="res.benchmark_metrics && res.benchmark_metrics[k] !== undefined && !['trades','break_even_bps','win_rate','profit_factor','expectancy'].includes(k)" x-text="'B&H ' + QTS.fmtMetric(k, res.benchmark_metrics && res.benchmark_metrics[k])"></span></div>
+              </template>
+            </div>
+            <div class="tabs"><template x-for="t in [['overview','Equity & drawdown'],['price','Price & trades'],['charts','Rolling Sharpe & exposure'],['monthly','Monthly returns'],['trades','Trade list'],['costs','Costs: gross vs net'],['all','All metrics']]"><a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template></div>
+            <div x-show="tab==='overview'" class="space-y-3"><div class="card" style="height:320px"><canvas x-ref="eq"></canvas></div><div class="card" style="height:180px"><canvas x-ref="dd"></canvas></div></div>
+            <div x-show="tab==='price'" class="card"><div x-ref="price" style="height:420px"></div><p class="text-xs muted mt-1">Trade markers: ▲ buy fill (next-bar open), ▼ sell fill; stop / target exits are labelled.</p></div>
+            <div x-show="tab==='charts'" class="grid lg:grid-cols-2 gap-3"><div class="card" style="height:260px"><canvas x-ref="roll"></canvas></div><div class="card" style="height:260px"><canvas x-ref="expo"></canvas></div></div>
+            <div x-show="tab==='monthly'" class="card scroll-x" x-html="heat()"></div>
+            <div x-show="tab==='trades'" class="card scroll-x max-h-[32rem] overflow-y-auto">
+              <table class="t"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th class="num">Entry px</th><th class="num">Exit px</th><th class="num">Bars</th><th class="num">Gross</th><th class="num">Net</th><th class="num">P&L $</th><th>Exit</th></tr></thead>
+                <tbody><template x-for="(t, i) in (res.trades || [])" :key="i"><tr><td x-text="t.symbol"></td><td x-text="t.side"></td><td class="text-xs" x-text="t.entry_date"></td><td class="text-xs" x-text="t.exit_date"></td>
+                  <td class="num" x-text="QTS.num(t.entry_price)"></td><td class="num" x-text="QTS.num(t.exit_price)"></td><td class="num" x-text="t.bars_held"></td>
+                  <td class="num" :class="QTS.cls(t.gross_return)" x-text="QTS.pct(t.gross_return)"></td><td class="num" :class="QTS.cls(t.net_return)" x-text="QTS.pct(t.net_return)"></td><td class="num" :class="QTS.cls(t.pnl)" x-text="QTS.usd(t.pnl)"></td><td class="text-xs" x-text="t.exit_reason"></td></tr></template></tbody></table>
+              <div x-show="!(res.trades||[]).length" class="empty">No trades.</div>
+            </div>
+            <div x-show="tab==='costs'" class="grid lg:grid-cols-2 gap-3">
+              <div class="card"><table class="t"><tbody>
+                <template x-for="k in ['commission','spread','slippage','reg_fees','borrow','total']"><tr><td x-text="k.replace('_',' ')"></td><td class="num" x-text="QTS.usd(res.cost_summary[k])"></td></tr></template>
+                <tr><td>total as % of capital</td><td class="num" x-text="QTS.pct(res.cost_summary.total_pct_of_capital)"></td></tr>
+                <tr><td>gross CAGR → net CAGR</td><td class="num" x-text="QTS.pct(res.cost_summary.gross_cagr) + ' → ' + QTS.pct(res.cost_summary.net_cagr)"></td></tr>
+                <tr><td>cost drag (CAGR)</td><td class="num neg" x-text="QTS.pct(res.cost_summary.cost_drag_cagr)"></td></tr>
+                <tr><td :title="QTS.metricTip('break_even_bps')">break-even one-way cost</td><td class="num" x-text="QTS.fmtMetric('break_even_bps', res.cost_summary.break_even_bps)"></td></tr>
+                <tr><td>fills</td><td class="num" x-text="res.cost_summary.n_fills"></td></tr></tbody></table>
+                <p class="text-xs muted mt-2">A strategy whose average trade is only a few times its round-trip cost is fragile. Compare gross vs net Sharpe below.</p>
+                <table class="t mt-2"><thead><tr><th></th><th class="num">Gross</th><th class="num">Net</th></tr></thead><tbody>
+                  <template x-for="k in ['cagr','sharpe','max_drawdown','win_rate']"><tr><td x-text="QTS.label(k)"></td><td class="num" x-text="QTS.fmtMetric(k, res.gross_metrics && res.gross_metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, res.metrics[k])"></td></tr></template></tbody></table></div>
+              <div class="card" style="height:280px"><canvas x-ref="costs"></canvas></div>
+            </div>
+            <div x-show="tab==='all'" class="card scroll-x"><table class="t"><thead><tr><th>Metric</th><th class="num">Strategy (net)</th><th class="num">Strategy (gross)</th><th class="num" x-text="res.benchmark + ' B&H'"></th><th>Formula</th></tr></thead>
+              <tbody><template x-for="k in metricKeys"><tr><td :title="QTS.metricTip(k)"><span class="tip" x-text="QTS.label(k)"></span></td><td class="num" x-text="QTS.fmtMetric(k, res.metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, res.gross_metrics && res.gross_metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, res.benchmark_metrics && res.benchmark_metrics[k])"></td><td class="text-xs muted mono" x-text="($store.app.defs[k]||{}).formula"></td></tr></template></tbody></table>
+              <div class="text-xs muted mt-2" x-show="res.extra && res.extra.diagnostics" x-text="'Pairs diagnostics (formation period): ' + JSON.stringify(res.extra && res.extra.diagnostics)"></div>
+              <div class="text-xs muted mt-1" x-show="res.extra && res.extra.regimes" x-text="'Walk-forward regimes: ' + JSON.stringify(res.extra && res.extra.regimes)"></div>
+              <div class="text-xs muted mt-1" x-show="res.extra && Object.keys(res.extra).some(k => k.startsWith('sentiment_'))" x-text="'Sentiment source: ' + Object.entries(res.extra||{}).filter(e => e[0].startsWith('sentiment_')).map(e => e[0].slice(10) + ' ' + e[1]).join(', ')"></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- execution / market making -->
+        <template x-if="kind==='execution'">
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <template x-for="k in ['avg_price','session_vwap','arrival_price','slippage_vs_vwap_bps','implementation_shortfall_bps','fill_rate','n_children','max_participation']"><div class="card !p-2.5 kpi"><span class="k" x-text="k.replaceAll('_',' ')"></span><span class="v text-base" x-text="k.includes('bps') ? QTS.num(res.metrics[k],1) + ' bps' : k.includes('rate') || k.includes('participation') ? QTS.pct(res.metrics[k]) : QTS.num(res.metrics[k])"></span></div></template>
+            </div>
+            <div class="card scroll-x"><div class="card-title">TWAP vs VWAP vs POV on the same session <span class="card-sub" x-text="res.extra.day"></span></div>
+              <table class="t"><thead><tr><th>Algo</th><th class="num">Avg price</th><th class="num">vs VWAP (bps)</th><th class="num">Shortfall (bps)</th><th class="num">Fill rate</th><th class="num">Children</th><th class="num">Max participation</th></tr></thead>
+                <tbody><template x-for="c in res.extra.compare"><tr><td class="font-semibold uppercase" x-text="c.algo"></td><td class="num" x-text="QTS.num(c.avg_price)"></td><td class="num" x-text="QTS.num(c.slippage_vs_vwap_bps,1)"></td><td class="num" x-text="QTS.num(c.implementation_shortfall_bps,1)"></td><td class="num" x-text="QTS.pct(c.fill_rate)"></td><td class="num" x-text="c.n_children"></td><td class="num" x-text="QTS.pct(c.max_participation)"></td></tr></template></tbody></table>
+              <p class="text-xs muted mt-2">Impact model: square-root of participation. Lower slippage vs the session VWAP and lower implementation shortfall vs the arrival price are better. POV may not finish if volume is thin.</p></div>
+            <div class="grid lg:grid-cols-2 gap-3"><div class="card" style="height:240px"><canvas x-ref="eq"></canvas></div><div class="card" style="height:240px"><canvas x-ref="dd"></canvas></div></div>
+          </div>
+        </template>
+        <template x-if="kind==='market_making'">
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="card !p-2.5 kpi"><span class="k">Total return</span><span class="v text-base" x-text="QTS.pct(res.metrics.total_return)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Spread captured</span><span class="v text-base" x-text="QTS.usd(res.extra.spread_captured)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Inventory P&L</span><span class="v text-base" :class="QTS.cls(res.extra.inventory_pnl)" x-text="QTS.usd(res.extra.inventory_pnl)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Fills (buy / sell)</span><span class="v text-base" x-text="res.extra.n_buys + ' / ' + res.extra.n_sells"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Max |inventory|</span><span class="v text-base" x-text="res.extra.max_abs_inventory"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Sharpe (hourly, ann.)</span><span class="v text-base" x-text="QTS.num(res.metrics.sharpe)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Max drawdown</span><span class="v text-base" x-text="QTS.pct(res.metrics.max_drawdown)"></span></div>
+              <div class="card !p-2.5 kpi"><span class="k">Final inventory</span><span class="v text-base" x-text="res.extra.final_inventory"></span></div>
+            </div>
+            <p class="text-sm muted">The market maker earns the spread when both sides fill, but trending bars fill it on the wrong side (adverse selection). The inventory skew pushes quotes down when long and up when short to shed inventory.</p>
+            <div class="card" style="height:280px"><canvas x-ref="eq"></canvas></div><div class="card" style="height:200px"><canvas x-ref="dd"></canvas></div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</div>

@@ -1,0 +1,72 @@
+<div x-data="dashboardPage()" class="space-y-4">
+  <div class="rounded-xl bg-gradient-to-r from-brand-700 to-brand-500 text-white p-5 flex flex-wrap items-center gap-4">
+    <div class="flex-1 min-w-[16rem]">
+      <div class="text-xs uppercase tracking-wider opacity-80">IBF course · Machine Learning 101 for Financial Trading</div>
+      <h2 class="text-xl font-semibold">From hypothesis to backtest to automated paper trading</h2>
+      <p class="text-sm opacity-90">Data → indicators → strategies → research → multi-agent desk → risk → paper execution → analytics. Paper trading only.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="#/labs" class="btn bg-white/10 border-white/30 text-white hover:bg-white/20">Course Labs</a>
+      <a href="#/backtest" class="btn bg-white text-brand-700 border-white">Run a backtest</a>
+    </div>
+  </div>
+
+  <!-- compact pipeline strip -->
+  <a href="#/pipeline" class="card block hover:shadow-md transition-shadow">
+    <div class="card-title">Pipeline <span class="card-sub">live state of all 14 stages - click to open the Pipeline Map</span></div>
+    <div class="flex flex-wrap gap-1.5">
+      <template x-for="n in pipe.stages.filter(s => !s.side_input)" :key="n.key">
+        <span class="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700" :class="n.disabled ? 'opacity-60' : ''" :title="n.title + ': ' + (n.message || n.status)">
+          <span class="dot" :class="dot(n.status)"></span><span x-text="n.order + '. ' + n.title"></span></span>
+      </template>
+    </div>
+  </a>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="card kpi"><span class="k">Bots equity</span><span class="v" x-text="QTS.usd(totalEquity)"></span><span class="text-xs" :class="QTS.cls(totalPnl)" x-text="'P&L ' + QTS.usd(totalPnl)"></span></div>
+    <div class="card kpi"><span class="k">Best backtest Sharpe <span class="qmark" :title="QTS.metricTip('sharpe')">?</span></span><span class="v" x-text="sum.best[0] ? QTS.num(sum.best[0].metrics.sharpe) : '–'"></span><span class="text-xs muted truncate" x-text="sum.best[0] ? sum.best[0].name : 'run a backtest'"></span></div>
+    <div class="card kpi"><span class="k">Bars cached</span><span class="v" x-text="QTS.int(status.bars)"></span><span class="text-xs muted" x-text="status.data_mode"></span></div>
+    <div class="card kpi"><span class="k">Awaiting your approval</span><span class="v" x-text="pending"></span><a href="#/agents" class="text-xs link">AI agents desk</a></div>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-4">
+    <div class="card lg:col-span-2">
+      <div class="card-title">Recent backtests <a href="#/backtest" class="ml-auto text-xs link">new backtest</a></div>
+      <div x-show="!sum.recent.length" class="empty">No backtests yet. <b>Seed the demo data</b> (Settings) or run one on the Backtest page.</div>
+      <div class="scroll-x" x-show="sum.recent.length"><table class="t">
+        <thead><tr><th>#</th><th>Name</th><th class="num">CAGR</th><th class="num">Sharpe</th><th class="num">Max DD</th><th class="num">Trades</th></tr></thead>
+        <tbody><template x-for="b in sum.recent" :key="b.id"><tr class="cursor-pointer" @click="QTS.go('backtest?id=' + b.id)">
+          <td x-text="b.id"></td><td x-text="b.name"></td><td class="num" :class="QTS.cls(b.metrics && b.metrics.cagr)" x-text="QTS.pct(b.metrics && b.metrics.cagr)"></td>
+          <td class="num" x-text="QTS.num(b.metrics && b.metrics.sharpe)"></td><td class="num neg" x-text="QTS.pct(b.metrics && b.metrics.max_drawdown)"></td><td class="num" x-text="b.metrics && b.metrics.trades"></td></tr></template></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">US market clock</div>
+      <div class="text-sm" x-text="clock.describe"></div>
+      <div class="mt-2"><span class="badge" :class="clock.session==='regular' ? 'badge-ok' : 'badge-warn'" x-text="(clock.session||'').toUpperCase()"></span></div>
+      <p class="text-xs muted mt-2" x-text="clock.note"></p>
+      <p class="text-xs muted mt-2">A 09:00-18:30 Singapore class sits in the US overnight and pre-market sessions: bots then send <b>extended-hours LIMIT</b> orders (Alpaca 24/5) or queue GTC limits when the market is closed.</p>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-4">
+    <div class="card">
+      <div class="card-title">Paper-trading bots <a href="#/trading" class="ml-auto text-xs link">manage</a></div>
+      <div x-show="!sum.bots.length" class="empty">No bots yet. Create one from a backtest or on the Paper Trading page.</div>
+      <template x-for="b in sum.bots" :key="b.id">
+        <a :href="'#/trading?bot=' + b.id" class="flex items-center gap-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+          <span class="badge" :class="QTS.statusBadge(b.status)" x-text="b.status"></span>
+          <div class="flex-1 min-w-0"><div class="text-sm font-medium truncate" x-text="b.name"></div><div class="text-xs muted" x-text="b.strategy_key + ' · ' + b.symbols.join(',') + ' · ' + b.broker + ' · ' + b.cycles + ' cycles'"></div></div>
+          <div class="text-right text-sm"><div class="font-semibold" x-text="QTS.usd(b.equity)"></div><div class="text-xs" :class="QTS.cls((b.equity||0)-(b.starting_cash||0))" x-text="QTS.usd((b.equity||0)-(b.starting_cash||0))"></div></div>
+        </a>
+      </template>
+    </div>
+    <div class="card">
+      <div class="card-title">Latest orders <a href="#/trading?tab=orders" class="ml-auto text-xs link">order blotter</a></div>
+      <div x-show="!orders.length" class="empty">No paper orders yet.</div>
+      <div class="scroll-x" x-show="orders.length"><table class="t"><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th>Type</th><th>Status</th><th>Source</th></tr></thead>
+        <tbody><template x-for="o in orders" :key="o.id"><tr><td class="text-xs" x-text="QTS.ago(o.submitted_at)"></td><td x-text="o.symbol"></td><td :class="o.side==='buy' ? 'pos' : 'neg'" x-text="o.side"></td>
+          <td class="num" x-text="o.qty"></td><td class="text-xs" x-text="o.type + (o.extended_hours ? ' ext' : '')"></td><td><span class="badge" :class="QTS.statusBadge(o.status)" x-text="o.status"></span></td><td class="text-xs" x-text="o.source"></td></tr></template></tbody></table></div>
+    </div>
+  </div>
+</div>

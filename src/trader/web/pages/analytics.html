@@ -1,0 +1,47 @@
+<div x-data="analyticsPage()" class="space-y-4">
+  <div class="card flex flex-wrap items-end gap-3">
+    <div class="min-w-[18rem] flex-1"><label class="label">Backtest</label><select class="input" x-model.number="selId" @change="load()"><template x-for="b in list" :key="b.id"><option :value="b.id" x-text="'#' + b.id + ' ' + b.name"></option></template></select></div>
+    <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/tearsheet.pdf'">PDF tearsheet</a>
+    <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/export.csv'">CSV</a>
+    <div class="min-w-[14rem]"><label class="label">Bot (backtest vs forward)</label><select class="input" x-model.number="botId" @change="loadBot()"><option :value="null">–</option><template x-for="b in bots" :key="b.id"><option :value="b.id" x-text="b.name"></option></template></select></div>
+  </div>
+  <div x-show="!list.length" class="empty">No completed backtests yet - run one on the Backtest page or seed the demo data.</div>
+  <template x-if="bt">
+    <div class="grid xl:grid-cols-3 gap-4">
+      <div class="card scroll-x">
+        <div class="card-title">All metrics <span class="card-sub">hover a metric for its definition</span></div>
+        <table class="t"><thead><tr><th>Metric</th><th class="num">Strategy</th><th class="num">Benchmark</th></tr></thead>
+          <tbody><template x-for="k in keys"><tr :title="QTS.metricTip(k)"><td><span class="tip" x-text="QTS.label(k)"></span></td><td class="num" x-text="QTS.fmtMetric(k, bt.metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, bt.benchmark_metrics && bt.benchmark_metrics[k])"></td></tr></template></tbody></table>
+      </div>
+      <div class="xl:col-span-2 space-y-3">
+        <div class="card" style="height:300px"><canvas x-ref="eq"></canvas></div>
+        <div class="grid lg:grid-cols-2 gap-3"><div class="card" style="height:200px"><canvas x-ref="dd"></canvas></div><div class="card" style="height:200px"><canvas x-ref="roll"></canvas></div></div>
+        <div class="card scroll-x"><div class="card-title">Monthly returns (%)</div><div x-html="heat()"></div></div>
+        <div class="card scroll-x"><div class="card-title">Costs</div><table class="t"><tbody><template x-for="k in ['commission','spread','slippage','reg_fees','borrow','total']"><tr><td x-text="k.replace('_',' ')"></td><td class="num" x-text="QTS.usd(bt.cost_summary && bt.cost_summary[k])"></td></tr></template>
+          <tr><td>gross → net CAGR</td><td class="num" x-text="QTS.pct(bt.cost_summary && bt.cost_summary.gross_cagr) + ' → ' + QTS.pct(bt.cost_summary && bt.cost_summary.net_cagr)"></td></tr></tbody></table></div>
+        <div class="card scroll-x max-h-80 overflow-y-auto"><div class="card-title">Trades</div><table class="t"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th class="num">Net</th><th class="num">P&L</th></tr></thead>
+          <tbody><template x-for="(t,i) in (bt.trades||[])" :key="i"><tr><td x-text="t.symbol"></td><td x-text="t.side"></td><td class="text-xs" x-text="t.entry_date"></td><td class="text-xs" x-text="t.exit_date"></td><td class="num" :class="QTS.cls(t.net_return)" x-text="QTS.pct(t.net_return)"></td><td class="num" :class="QTS.cls(t.pnl)" x-text="QTS.usd(t.pnl)"></td></tr></template></tbody></table></div>
+      </div>
+    </div>
+  </template>
+
+  <div class="card space-y-3">
+    <div class="card-title">Compare runs side by side <span class="card-sub">tick 2-5 backtests</span><button class="btn-primary btn-xs ml-auto" @click="compare()">Compare</button></div>
+    <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto"><template x-for="b in list" :key="b.id"><label class="inline-flex items-center gap-1 text-xs border border-slate-200 dark:border-slate-700 rounded px-2 py-1"><input type="checkbox" :checked="cmpIds.includes(b.id)" @change="toggleCmp(b.id)"><span x-text="'#' + b.id + ' ' + b.name"></span></label></template></div>
+    <template x-if="cmp.length"><div class="space-y-3">
+      <div style="height:280px"><canvas x-ref="cmp"></canvas></div>
+      <div class="scroll-x"><table class="t"><thead><tr><th>Metric</th><template x-for="c in cmp"><th class="num" x-text="'#' + c.id"></th></template></tr></thead>
+        <tbody><template x-for="k in keys"><tr><td :title="QTS.metricTip(k)" x-text="QTS.label(k)"></td><template x-for="c in cmp"><td class="num" x-text="QTS.fmtMetric(k, c.metrics[k])"></td></template></tr></template></tbody></table></div>
+    </div></template>
+  </div>
+
+  <template x-if="botCmp">
+    <div class="card space-y-2">
+      <div class="card-title">Backtest vs forward test (bot)</div>
+      <div x-show="!botCmp.ready" class="text-sm muted" x-text="botCmp.message"></div>
+      <template x-if="botCmp.ready"><div class="space-y-2"><div style="height:240px"><canvas x-ref="botc"></canvas></div>
+        <table class="t"><thead><tr><th>Metric</th><th class="num">Forward</th><th class="num">Backtest</th></tr></thead><tbody><template x-for="k in ['total_return','sharpe','max_drawdown','volatility']"><tr><td x-text="QTS.label(k)"></td><td class="num" x-text="QTS.fmtMetric(k, botCmp.forward_metrics[k])"></td><td class="num" x-text="QTS.fmtMetric(k, botCmp.backtest_metrics[k])"></td></tr></template></tbody></table>
+        <p class="text-xs muted" x-text="botCmp.note"></p></div></template>
+    </div>
+  </template>
+</div>

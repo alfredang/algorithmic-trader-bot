@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quant Trading Simulator</title>
+  <meta name="description" content="Quant / algorithmic trading simulator (paper trading only) - companion software for the IBF course Machine Learning 101 for Financial Trading, Tertiary Infotech Academy.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script>
+    // theme before paint (dark / light / system)
+    (function () {
+      var t = null; try { t = localStorage.getItem('qts-theme'); } catch (e) {}
+      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (dark) document.documentElement.classList.add('dark');
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: {
+      colors: { brand: { 50: '#eef4fb', 100: '#d5e3f4', 500: '#2f6db5', 600: '#1f4e79', 700: '#173b5c', 900: '#0d2136' },
+                accent: { 500: '#e87122', 600: '#c95c13' } },
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] } } } };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/material-darker.css">
+  <link rel="stylesheet" href="/static/css/app.css?v=2.0.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/python/python.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="/static/js/app.js?v=2.0.0"></script>
+  <script src="/static/js/charts.js?v=2.0.0"></script>
+  <script src="/static/js/pages.js?v=2.0.0"></script>
+  <script src="/static/js/pages2.js?v=2.0.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 font-sans antialiased" x-data="shell()">
+
+<div class="flex h-full">
+  <!-- Sidebar -->
+  <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+         class="fixed lg:static z-40 inset-y-0 left-0 w-64 shrink-0 transform transition-transform bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+    <div class="h-14 flex items-center gap-2 px-4 border-b border-slate-200 dark:border-slate-800">
+      <svg viewBox="0 0 32 32" class="w-8 h-8"><rect width="32" height="32" rx="7" fill="#1f4e79"/><path d="M6 22 L12 15 L17 19 L26 9" stroke="#e87122" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="9" r="2.4" fill="#fff"/></svg>
+      <div class="leading-tight">
+        <div class="font-semibold text-sm">Quant Trading Simulator</div>
+        <div class="text-[11px] text-slate-500">ML 101 for Financial Trading</div>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-3 text-sm" aria-label="Main">
+      <template x-for="group in nav" :key="group.label">
+        <div class="mb-2">
+          <div class="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400" x-text="group.label"></div>
+          <template x-for="item in group.items" :key="item.route">
+            <div>
+              <a :href="'#/' + item.route" @click="sidebarOpen=false"
+                 :class="isActive(item.route) ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/60 dark:text-white font-semibold border-r-2 border-brand-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800'"
+                 class="flex items-center gap-3 px-4 py-1.5">
+                <span class="w-5 h-5 shrink-0 opacity-80" x-html="icon(item.icon)"></span>
+                <span x-text="item.label"></span>
+                <span x-show="item.badge && badge(item.badge)" class="ml-auto text-[10px] rounded-full bg-accent-500 text-white px-1.5" x-text="badge(item.badge)"></span>
+              </a>
+              <template x-if="item.children && isActive(item.route)">
+                <div class="ml-12 border-l border-slate-200 dark:border-slate-700">
+                  <template x-for="c in item.children" :key="c.route">
+                    <a :href="'#/' + c.route" @click="sidebarOpen=false" class="block pl-3 py-1 text-[13px]"
+                       :class="route.full.startsWith(c.route) ? 'text-brand-600 dark:text-brand-100 font-semibold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'" x-text="c.label"></a>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+    </nav>
+    <div class="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 leading-snug">
+      <div class="font-semibold text-accent-600">PAPER TRADING ONLY</div>
+      Simulated / Alpaca paper. Not investment advice. &copy; Tertiary Infotech Academy course software (MIT).
+    </div>
+  </aside>
+  <div x-show="sidebarOpen" @click="sidebarOpen=false" class="fixed inset-0 z-30 bg-black/40 lg:hidden" x-cloak></div>
+
+  <!-- Main -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-14 shrink-0 flex items-center gap-2 px-3 sm:px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
+      <button class="lg:hidden p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" @click="sidebarOpen=true" aria-label="Open menu" x-html="icon('menu')"></button>
+      <h1 class="font-semibold truncate" x-text="title"></h1>
+      <div class="ml-auto flex items-center gap-2 text-xs">
+        <span class="hidden md:inline-flex badge" :class="clock.session==='regular' ? 'badge-ok' : clock.session==='closed' ? 'badge-muted' : 'badge-warn'"
+              :title="clock.describe + ' - outside the regular session only extended-hours LIMIT orders are accepted'">
+          <span class="dot" :class="clock.session==='regular' ? 'bg-emerald-500' : clock.session==='closed' ? 'bg-slate-400' : 'bg-amber-500'"></span>
+          <span x-text="'US ' + (clock.session||'').toUpperCase()"></span>
+          <span class="opacity-70" x-text="clock.ny"></span><span class="opacity-50">NY ·</span><span class="opacity-70" x-text="clock.sg"></span><span class="opacity-50">SGT</span>
+        </span>
+        <span class="hidden sm:inline-flex badge" :class="status.alpaca ? 'badge-ok' : 'badge-info'" :title="'Data: ' + status.data_mode + ' | Broker: ' + status.broker">
+          <span x-text="status.alpaca ? 'Alpaca paper' : 'Offline demo'"></span>
+        </span>
+        <a href="#/agents" class="hidden sm:inline-flex badge badge-info" title="AI provider used by the multi-agent desk"><span x-text="'AI: ' + (status.ai_provider||'rules')"></span></a>
+        <span class="badge" :class="live ? 'badge-ok' : 'badge-muted'" :title="live ? 'Live updates connected (SSE)' : 'Live updates reconnecting'">
+          <span class="dot" :class="live ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></span><span class="hidden sm:inline">Live</span></span>
+        <button @click="toggleKill()" class="btn-xs" :class="kill ? 'bg-red-600 text-white' : 'border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950'"
+                :title="kill ? 'Global kill switch is ON - click to resume trading' : 'Global kill switch: halt ALL paper trading immediately'">
+          <span x-text="kill ? 'KILL SWITCH ON' : 'Kill switch'"></span></button>
+        <button class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" @click="toggleTheme()" :aria-label="'Switch theme'" x-html="icon(dark ? 'sun' : 'moon')"></button>
+      </div>
+    </header>
+    <main id="view" class="flex-1 overflow-y-auto p-3 sm:p-6" tabindex="-1"></main>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="fixed bottom-4 right-4 z-50 space-y-2 w-80 max-w-[calc(100vw-2rem)]">
+  <template x-for="t in $store.app.toasts" :key="t.id">
+    <div class="rounded-lg shadow-lg px-4 py-3 text-sm border" :class="t.kind==='error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-900 dark:text-red-200' : t.kind==='ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-200' : 'bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700'">
+      <div x-text="t.text"></div>
+    </div>
+  </template>
+</div>
+
+<!-- Onboarding wizard -->
+<div x-show="onboard.open" x-cloak class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Welcome">
+    <div class="flex items-center gap-2 mb-4">
+      <template x-for="(s, i) in ['Welcome','Data & broker','AI agents','Demo data','Start']" :key="i">
+        <div class="flex items-center gap-2 text-xs">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center font-semibold" :class="onboard.step>=i ? 'bg-brand-600 text-white' : 'bg-slate-200 dark:bg-slate-700'" x-text="i+1"></span>
+          <span class="hidden sm:inline" x-text="s"></span><span x-show="i<4" class="text-slate-300">—</span>
+        </div>
+      </template>
+    </div>
+    <div x-show="onboard.step===0">
+      <h2 class="text-xl font-semibold mb-2">Welcome to the Quant Trading Simulator</h2>
+      <p class="mb-2">The companion software for the IBF course <b>Machine Learning 101 for Financial Trading</b> (Tertiary Infotech Academy). Every course lab can be done here: data, indicators, strategies, backtests with costs, research, a multi-agent AI desk and automated paper trading.</p>
+      <div class="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-3 text-sm"><b>Paper trading only.</b> There is no live-money order path: Alpaca is always used with <code>paper=True</code>, otherwise a built-in simulator. Nothing here is investment advice.</div>
+    </div>
+    <div x-show="onboard.step===1">
+      <h2 class="text-lg font-semibold mb-2">Choose how to get data and place paper orders</h2>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="rounded-lg border p-3" :class="!status.alpaca ? 'border-brand-500 ring-2 ring-brand-100' : 'border-slate-200 dark:border-slate-700'">
+          <div class="font-semibold">Offline demo (no keys)</div>
+          <p class="text-sm text-slate-500">Bundled daily bars 2018-2025 for 12 symbols + SPY hourly, synthetic sample headlines, and the simulator broker. Works with zero keys.</p>
+        </div>
+        <div class="rounded-lg border p-3" :class="status.alpaca ? 'border-brand-500 ring-2 ring-brand-100' : 'border-slate-200 dark:border-slate-700'">
+          <div class="font-semibold">Connect Alpaca paper</div>
+          <ol class="text-sm text-slate-500 list-decimal ml-4">
+            <li>alpaca.markets → Paper Trading → API Keys → Generate</li>
+            <li>Put <code>APCA_API_KEY_ID</code> and <code>APCA_API_SECRET_KEY</code> in <code>.env</code></li>
+            <li>Restart the app, then test on Integrations</li>
+          </ol>
+        </div>
+      </div>
+      <p class="mt-3 text-sm">Current mode: <b x-text="status.data_mode"></b>, broker <b x-text="status.broker"></b>.</p>
+    </div>
+    <div x-show="onboard.step===2">
+      <h2 class="text-lg font-semibold mb-2">AI agents (optional)</h2>
+      <p class="text-sm mb-2">The multi-agent desk runs with a deterministic rule brain out of the box. To use an LLM:</p>
+      <ul class="text-sm space-y-1 list-disc ml-5">
+        <li><b>OpenAI Codex - Sign in with ChatGPT (subscription):</b> run <code>codex login</code> on this machine. The app reuses your own local login through the official Codex SDK and never reads or stores tokens.</li>
+        <li><b>Claude (Claude Agent SDK):</b> set <code>ANTHROPIC_API_KEY</code>. Claude.ai subscription login is not offered: Anthropic's terms do not allow third-party apps to use it.</li>
+        <li><b>OpenAI Agents SDK:</b> set <code>OPENAI_API_KEY</code>.</li>
+      </ul>
+      <p class="mt-2 text-sm">Active provider now: <b x-text="status.ai_provider"></b>. Details on the <a class="link" href="#/integrations" @click="onboard.open=false">Integrations</a> page.</p>
+    </div>
+    <div x-show="onboard.step===3">
+      <h2 class="text-lg font-semibold mb-2">Demo data and sample results</h2>
+      <p class="text-sm">Bars cached: <b x-text="status.bars"></b>, backtests: <b x-text="status.backtests"></b>.</p>
+      <p class="text-sm text-slate-500 mb-3">Seeding loads the 12 demo symbols, SPY hourly bars, sample headlines, two custom strategies (incl. the Lab 18 biased exhibit), sample backtests and research runs, and a stopped demo bot.</p>
+      <button class="btn-primary" @click="seed()" :disabled="onboard.seeding"><span x-text="onboard.seeding ? 'Seeding… (about 15 s)' : (status.bars ? 'Re-run seed (safe)' : 'Load demo data')"></span></button>
+    </div>
+    <div x-show="onboard.step===4">
+      <h2 class="text-lg font-semibold mb-2">You're ready</h2>
+      <p class="text-sm mb-3">Start with the <b>Pipeline Map</b> to see every stage, or follow the <b>Course Labs</b> step by step.</p>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-primary" @click="finishOnboarding('pipeline')">Open the Pipeline Map</button>
+        <button class="btn" @click="finishOnboarding('labs')">Go to Course Labs</button>
+      </div>
+    </div>
+    <div class="flex justify-between mt-6">
+      <button class="btn" x-show="onboard.step>0" @click="onboard.step--">Back</button>
+      <button class="btn-link ml-auto mr-2" @click="finishOnboarding()">Skip</button>
+      <button class="btn-primary" x-show="onboard.step<4" @click="onboard.step++">Next</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

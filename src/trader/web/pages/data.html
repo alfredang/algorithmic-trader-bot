@@ -1,0 +1,105 @@
+<div x-data="dataPage()" class="space-y-4">
+  <div class="tabs">
+    <template x-for="t in [['chart','Chart & indicators'],['instruments','Instruments & ingestion'],['quality','Data quality'],['news','News & sentiment'],['reference','Validate vs TradingView']]">
+      <a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template>
+  </div>
+
+  <!-- chart -->
+  <div x-show="tab==='chart'" class="space-y-3">
+    <div class="card flex flex-wrap items-end gap-3">
+      <div><label class="label">Symbol</label><select class="input w-32" x-model="symbol" @change="drawChart()"><template x-for="i in instruments" :key="i.symbol"><option :value="i.symbol" x-text="i.symbol"></option></template></select></div>
+      <div><label class="label">Timeframe</label><select class="input" x-model="timeframe" @change="drawChart()"><option>1Day</option><option>1Week</option><option>1Month</option><option>1Hour</option></select></div>
+      <div><label class="label">From</label><input class="input" type="date" x-model="start" @change="drawChart()"></div>
+      <div class="flex-1 min-w-[18rem]"><label class="label">Price overlays</label>
+        <div class="flex flex-wrap gap-1">
+          <template x-for="o in ['sma:20','sma:50','sma:200','ema:20','ema:50','bollinger','donchian:20','vwap:20']"><button class="btn-xs" :class="overlays.includes(o) ? 'bg-brand-600 text-white' : 'btn'" @click="toggleOverlay(o)" x-text="o"></button></template>
+        </div></div>
+      <div><label class="label">Lower pane</label><select class="input" x-model="osc" @change="drawChart()"><option value="rsi">RSI(14)</option><option value="macd">MACD</option><option value="atr">ATR(14)</option><option value="stochastic">Stochastic</option><option value="obv">OBV</option><option value="">none</option></select></div>
+      <a class="btn" :href="'#/strategies'">Export Pine Script</a>
+    </div>
+    <div class="card"><div x-ref="price" style="height:380px"></div><div x-ref="osc" style="height:160px" class="mt-2 border-t border-slate-100 dark:border-slate-800"></div>
+      <p class="text-xs muted mt-2">TradingView Lightweight Charts. Indicator definitions match TradingView's built-ins (ta.sma, ta.ema, ta.rsi, ta.macd, ta.bb, ta.atr) so you can cross-check values against your Pine Script chart. Bars are split- and dividend-adjusted.</p></div>
+  </div>
+
+  <!-- instruments -->
+  <div x-show="tab==='instruments'" class="grid lg:grid-cols-3 gap-4">
+    <div class="card lg:col-span-2 scroll-x">
+      <div class="card-title">Cached instruments <span class="card-sub" x-text="instruments.length + ' symbols'"></span></div>
+      <table class="t"><thead><tr><th>Symbol</th><th>Name</th><th>Source</th><th class="num">Bars</th><th>From</th><th>To</th><th>Quality</th></tr></thead>
+        <tbody><template x-for="i in instruments" :key="i.symbol"><tr class="cursor-pointer" @click="symbol=i.symbol; setTab('chart')"><td class="font-semibold" x-text="i.symbol"></td><td class="text-xs" x-text="i.name"></td><td><span class="badge badge-muted" x-text="i.source"></span></td>
+          <td class="num" x-text="QTS.int(i.bars)"></td><td class="text-xs" x-text="i.first_bar"></td><td class="text-xs" x-text="i.last_bar"></td><td><span class="badge" :class="i.quality==='OK' ? 'badge-ok' : i.quality==='FAIL' ? 'badge-err' : 'badge-warn'" x-text="i.quality || '–'"></span></td></tr></template></tbody></table>
+    </div>
+    <div class="card space-y-3">
+      <div class="card-title">Fetch / refresh data</div>
+      <div><label class="label">Symbol</label><input class="input" x-model="fetchForm.symbol" placeholder="e.g. AAPL"></div>
+      <div><label class="label">Source</label><select class="input" x-model="fetchForm.source"><option value="auto">auto (Alpaca if keys, else demo, else yfinance)</option>
+        <template x-for="s in sources" :key="s.name"><option :value="s.name" x-text="s.label + (s.available ? '' : ' - not configured')" :disabled="!s.available"></option></template></select></div>
+      <div class="grid grid-cols-2 gap-2"><div><label class="label">Timeframe</label><select class="input" x-model="fetchForm.timeframe"><option>1Day</option><option>1Hour</option></select></div>
+        <div><label class="label">Start</label><input class="input" type="date" x-model="fetchForm.start"></div></div>
+      <button class="btn-primary w-full justify-center" @click="fetchData()" :disabled="fetching"><span x-show="fetching" class="spinner"></span>Fetch, check quality and cache</button>
+      <p class="help">Every ingest runs the data-quality checks and records the result on the Pipeline Map. Weekly and monthly bars are resampled from daily bars.</p>
+    </div>
+  </div>
+
+  <!-- quality -->
+  <div x-show="tab==='quality'" class="card space-y-3">
+    <div class="flex flex-wrap items-end gap-3"><div><label class="label">Symbol</label><select class="input w-32" x-model="symbol" @change="loadQuality()"><template x-for="i in instruments" :key="i.symbol"><option :value="i.symbol" x-text="i.symbol"></option></template></select></div>
+      <div><label class="label">Timeframe</label><select class="input" x-model="timeframe" @change="loadQuality()"><option>1Day</option><option>1Hour</option></select></div></div>
+    <template x-if="quality">
+      <div class="space-y-3">
+        <div class="flex items-center gap-2"><span class="badge text-sm" :class="quality.status==='OK' ? 'badge-ok' : quality.status==='FAIL' ? 'badge-err' : 'badge-warn'" x-text="quality.status"></span><span class="text-sm" x-text="quality.rows + ' bars, ' + quality.first + ' to ' + quality.last + ', timezone ' + quality.timezone"></span></div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+          <template x-for="k in ['missing_values','duplicate_timestamps','not_sorted','high_below_low','close_outside_range','zero_volume','gaps_over_4_days','big_moves']">
+            <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-2"><div class="text-xs muted" x-text="k.replaceAll('_',' ')"></div><div class="font-semibold" :class="quality[k] ? 'text-amber-600' : 'pos'" x-text="quality[k]"></div></div></template>
+        </div>
+        <ul class="text-sm list-disc ml-5"><template x-for="n in quality.notes"><li x-text="n"></li></template></ul>
+        <div x-show="quality.big_move_dates && quality.big_move_dates.length" class="text-xs muted">Big moves on: <span x-text="quality.big_move_dates.join(', ')"></span>. Possible split ratios: <span x-text="(quality.possible_splits||[]).join(', ') || 'none'"></span></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- news -->
+  <div x-show="tab==='news'" class="grid lg:grid-cols-3 gap-4">
+    <div class="card lg:col-span-2 space-y-3">
+      <div class="flex flex-wrap items-end gap-3">
+        <div><label class="label">Symbol</label><select class="input w-32" x-model="symbol" @change="loadNews()"><template x-for="i in instruments" :key="i.symbol"><option :value="i.symbol" x-text="i.symbol"></option></template></select></div>
+        <div><label class="label">Source</label><select class="input" x-model="newsSource"><option value="auto">auto</option><option value="newsapi">NewsAPI.org</option><option value="alpaca">Alpaca News</option><option value="demo">demo (synthetic)</option></select></div>
+        <button class="btn-primary" @click="fetchNews()" :disabled="newsBusy"><span x-show="newsBusy" class="spinner"></span>Fetch & score headlines</button>
+      </div>
+      <div x-show="!news.length" class="empty">No headlines for <b x-text="symbol"></b>. Fetch them (offline: synthetic sample headlines for NVDA, AAPL, SPY, JPM and others).</div>
+      <div class="scroll-x" x-show="news.length"><table class="t"><thead><tr><th>Date</th><th>Headline</th><th>Source</th><th class="num">VADER</th></tr></thead>
+        <tbody><template x-for="n in news" :key="n.id"><tr><td class="text-xs whitespace-nowrap" x-text="n.published_at.slice(0,10)"></td><td class="text-sm"><a x-show="n.url" :href="n.url" target="_blank" rel="noopener" class="link" x-text="n.headline"></a><span x-show="!n.url" x-text="n.headline"></span>
+          <span x-show="n.synthetic" class="badge badge-warn ml-1">synthetic</span></td><td class="text-xs" x-text="n.source"></td><td class="num" :class="QTS.cls(n.sentiment)" x-text="QTS.num(n.sentiment)"></td></tr></template></tbody></table></div>
+      <div style="height:180px" x-show="sentiment.length"><canvas x-ref="sent"></canvas></div>
+    </div>
+    <div class="card space-y-2">
+      <div class="card-title">Try the sentiment model</div>
+      <textarea class="input" rows="3" x-model="scoreText" placeholder="Brokerage upgrade cites record backlog and margin strength"></textarea>
+      <button class="btn" @click="score()">Score</button>
+      <div x-show="scoreVal !== null" class="text-sm">Compound score: <b :class="QTS.cls(scoreVal)" x-text="QTS.num(scoreVal, 3)"></b> (−1 very negative … +1 very positive)</div>
+      <p class="help">VADER lexicon (offline, deterministic) with finance-specific words added. Headlines are untrusted text: the AI agents receive them as data only and are told to ignore instructions inside them (prompt-injection defence).</p>
+    </div>
+  </div>
+
+  <!-- reference -->
+  <div x-show="tab==='reference'" class="card space-y-3">
+    <div class="text-sm">Lab 02: compare the app's bars with what you read in TradingView's <b>Data Window</b> (1D bar). TradingView's default chart is split-adjusted but <b>not dividend-adjusted</b>; backtests use adjusted bars.</div>
+    <div class="flex flex-wrap items-end gap-3">
+      <div><label class="label">Instrument</label><select class="input" x-model="refSymbol" @change="loadRef()"><option value="AAPL">NASDAQ:AAPL</option><option value="D05.SI">SGX:D05 (DBS)</option></select></div>
+      <div><label class="label">Date</label><input class="input" type="date" x-model="refDate" @change="loadRef()"></div>
+    </div>
+    <template x-if="ref">
+      <div class="scroll-x"><table class="t"><thead><tr><th></th><th class="num">Open</th><th class="num">High</th><th class="num">Low</th><th class="num">Close</th></tr></thead>
+        <tbody>
+          <tr><td class="font-semibold">RAW (TradingView default)</td><template x-for="f in ['open','high','low','close']"><td class="num" x-text="QTS.num(ref.raw[f])"></td></template></tr>
+          <tr><td class="font-semibold">ADJUSTED (research / backtests)</td><template x-for="f in ['open','high','low','close']"><td class="num" x-text="QTS.num(ref.adjusted[f])"></td></template></tr>
+          <tr><td class="font-semibold">Your TradingView reading</td><template x-for="f in ['open','high','low','close']"><td class="num"><input class="input w-24 text-right" x-model="tv[f]"></td></template></tr>
+          <tr><td class="muted text-xs">diff vs RAW</td><template x-for="f in ['open','high','low','close']"><td class="num text-xs" x-text="diff(f, ref.raw[f])"></td></template></tr>
+          <tr><td class="muted text-xs">diff vs ADJUSTED</td><template x-for="f in ['open','high','low','close']"><td class="num text-xs" x-text="diff(f, ref.adjusted[f])"></td></template></tr>
+        </tbody></table>
+        <div class="text-sm mt-2">Adjustment factor <b x-text="ref.adj_factor"></b> on <b x-text="ref.date"></b>. <span x-text="ref.note"></span></div>
+        <div class="mt-2 font-semibold" :class="verdict().startsWith('PASS') ? 'pos' : 'neg'" x-text="verdict()"></div>
+      </div>
+    </template>
+  </div>
+</div>
