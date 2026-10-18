@@ -1,0 +1,85 @@
+# Quant Trading Simulator - Docker Compose (Postgres). PAPER trading only.
+#   cp .env.example .env && docker compose up -d --build
+#   docker compose exec backend trader seed      # load the offline demo data
+#   open http://localhost:8000
+name: quant-trading-simulator
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD:-trader}@db:5432/${POSTGRES_DB:-trader}
+  SERVE_FRONTEND: "true"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trader}
+      POSTGRES_DB: ${POSTGRES_DB:-trader}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trader}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        UV_EXTRAS: ${UV_EXTRAS:-}
+    image: quant-trading-simulator-backend:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *app-env
+      RUN_SCHEDULER_IN_PROCESS: "false"
+    command: ["trader", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    expose: ["8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+
+  worker:
+    image: quant-trading-simulator-backend:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *app-env
+    command: ["trader", "worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; from trader.db import session_scope; from trader.models import Setting; import datetime as d; s=session_scope().__enter__(); h=s.get(Setting,'worker_heartbeat'); sys.exit(0 if h and (d.datetime.utcnow()-d.datetime.fromisoformat(h.value.rstrip('Z'))).total_seconds()<90 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    image: quant-trading-simulator-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
