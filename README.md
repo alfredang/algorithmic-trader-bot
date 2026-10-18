@@ -18,7 +18,7 @@ paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twel
 > does not predict future results. **Nothing here is investment advice.** The demo market data comes from Yahoo Finance via
 > yfinance, for educational use. The demo headlines and the offline sentiment series are **synthetic**.
 
-![Pipeline Map](docs/screenshots/pipeline.png)
+![Quant Trading Simulator - Pipeline Map home screen](screenshot.png)
 
 ## Contents
 
@@ -26,8 +26,8 @@ paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twel
 - [Features mapped to the course](#features-mapped-to-the-course)
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
-  - [Option A: uv (Python only, SQLite)](#option-a--uv-python-only-sqlite)
-  - [Option B: Docker Compose (Postgres)](#option-b--docker-compose-postgres)
+  - [Option A: uv (Python only, SQLite)](#option-a-uv-python-only-sqlite)
+  - [Option B: Docker Compose (Postgres)](#option-b-docker-compose-postgres)
   - [First run: onboarding](#first-run-onboarding)
   - [AI login](#ai-login-optional)
   - [Troubleshooting](#troubleshooting)
