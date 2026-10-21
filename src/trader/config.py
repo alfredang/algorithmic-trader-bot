@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     alpaca_data_feed: str = Field("iex", alias="APCA_DATA_FEED")
     twelvedata_api_key: str = Field("", alias="TWELVEDATA_API_KEY")
     newsapi_key: str = Field("", alias="NEWSAPI_KEY")
-    default_data_source: str = Field("auto", alias="DEFAULT_DATA_SOURCE")   # auto|demo|alpaca|twelvedata|yfinance
+    equibles_api_key: str = Field("", alias="EQUIBLES_API_KEY")
+    default_data_source: str = Field("auto", alias="DEFAULT_DATA_SOURCE")   # auto|demo|alpaca|twelvedata|equibles|yfinance
 
     # --- AI agents
     ai_provider: str = Field("auto", alias="AI_PROVIDER")                 # auto|rules|claude|openai|codex

@@ -1,4 +1,4 @@
-"""Market-data providers: bundled offline demo CSVs, Alpaca Market Data, Twelve Data and yfinance.
+"""Market-data providers: bundled offline demo CSVs, Alpaca Market Data, Twelve Data, Equibles and yfinance.
 
 Every provider returns a DataFrame indexed by timestamp with columns
 open, high, low, close, volume. Daily bars are tz-naive session dates;
@@ -7,7 +7,8 @@ intraday bars are tz-aware America/New_York timestamps.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+import time
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pandas as pd
@@ -193,6 +194,119 @@ class TwelveDataProvider:
         return js
 
 
+# --------------------------------------------------------------------------- Equibles
+class EquiblesError(DataError):
+    def __init__(self, message: str, status: int = 0):
+        super().__init__(message)
+        self.status = status
+
+
+class EquiblesProvider:
+    """Equibles REST API: daily bars plus SEC-sourced company data (valuation, short interest, insiders, ownership).
+
+    Every successful request counts against a daily allowance shared with Equibles' MCP server (Free: 100/day,
+    resets 00:00 UTC), so price history is paged at the 500-row maximum and company snapshots are cached.
+    """
+    name = "equibles"
+    label = "Equibles (daily prices + SEC fundamentals, insider & short data)"
+    URL = "https://api.equibles.com/v1"
+    PAGE = 500
+    MAX_PAGES = 12                      # 6,000 daily bars (~24 years) at most per fetch
+    COMPANY_TTL_S = 6 * 3600
+
+    def __init__(self):
+        self._company: dict[str, tuple[float, dict]] = {}
+
+    def available(self) -> bool:
+        return bool(get_settings().equibles_api_key)
+
+    def _get(self, path: str, params: dict | None = None) -> dict:
+        key = get_settings().equibles_api_key
+        if not key:
+            raise EquiblesError("EQUIBLES_API_KEY is not set - paste it on the Integrations page", 401)
+        r = httpx.get(f"{self.URL}{path}", params=params or {}, headers={"Authorization": f"Bearer {key}"}, timeout=30)
+        if r.status_code >= 400:
+            try:
+                err = r.json().get("error") or {}
+            except ValueError:
+                err = {}
+            msg = err.get("message") or r.text[:200] or r.reason_phrase
+            if r.status_code == 401:
+                msg = f"API key rejected - copy the full key from equibles.com/dashboard/apikeys ({msg})"
+            elif r.status_code == 429:
+                msg = f"daily request limit reached, resets 00:00 UTC ({msg})"
+            raise EquiblesError(f"Equibles {r.status_code}: {msg}", r.status_code)
+        return r.json()
+
+    def bars(self, symbol: str, timeframe: str = "1Day", start=None, end=None) -> pd.DataFrame:
+        if not timeframe.endswith(("Day", "Week", "Month")):
+            raise DataError("Equibles serves end-of-day bars only - use 1Day (weekly and monthly are resampled from it)")
+        params = {"startDate": str(pd.Timestamp(start or "2018-01-01").date()),
+                  "endDate": str(pd.Timestamp(end or datetime.now()).date()), "limit": self.PAGE}
+        rows: list[dict] = []
+        for page in range(self.MAX_PAGES):
+            js = self._get(f"/stocks/{symbol}/prices", {**params, "offset": page * self.PAGE})
+            rows += js.get("data") or []
+            if not (js.get("meta") or {}).get("hasMore"):
+                break
+        return resample(self.parse(rows, symbol), timeframe)
+
+    @staticmethod
+    def parse(rows: list[dict], symbol: str = "") -> pd.DataFrame:
+        """Newest-first rows -> ascending bars. Equibles' OHLC is split-adjusted only, so it is scaled by
+        adjustedClose / close to match the app's split- and dividend-adjusted convention."""
+        if not rows:
+            raise DataError(f"Equibles returned no daily prices for {symbol}")
+        df = pd.DataFrame(rows)
+        df["timestamp"] = pd.to_datetime(df["date"])
+        df = df.drop_duplicates("timestamp").set_index("timestamp").sort_index()
+        if "adjustedClose" in df:
+            factor = (df["adjustedClose"] / df["close"]).where(lambda f: f > 0).fillna(1.0)
+            for col in ("open", "high", "low", "close"):
+                df[col] = df[col] * factor
+        df.index.name = "timestamp"
+        return df[COLUMNS].astype(float)
+
+    def company(self, symbol: str, refresh: bool = False) -> dict:
+        """Latest close, valuation multiples, short interest, insider trades and ownership for one US listing.
+
+        Five requests, cached per symbol for 6 h. A section the listing has no data for (an ETF has no P/E) is
+        reported in ``errors``; a rejected key or an exhausted allowance stops the whole call.
+        """
+        symbol = symbol.upper().strip()
+        hit = self._company.get(symbol)
+        if hit and not refresh and time.time() - hit[0] < self.COMPANY_TTL_S:
+            return {**hit[1], "cached": True}
+        calls = {"latest": ("/prices/latest", {"tickers": symbol}),
+                 "valuation": (f"/stocks/{symbol}/valuation-multiples", None),
+                 "short_interest": (f"/stocks/{symbol}/short-interest", {"limit": 6}),
+                 "insider": (f"/stocks/{symbol}/insider-transactions", {"limit": 15}),
+                 "ownership": (f"/stocks/{symbol}/ownership-summary", None)}
+        out: dict = {"symbol": symbol, "fetched_at": datetime.now(UTC).isoformat(timespec="seconds"),
+               "errors": {}}
+        for section, (path, params) in calls.items():
+            try:
+                js = self._get(path, params)
+            except EquiblesError as exc:
+                if exc.status in (401, 429):
+                    raise
+                out[section] = None
+                out["errors"][section] = str(exc)
+                continue
+            if section == "latest":
+                out["latest"] = (js.get("data") or [None])[0]
+                out["notice"] = js.get("notice")
+            elif section in ("short_interest", "insider"):
+                out[section] = js.get("data") or []
+            else:
+                out[section] = js
+        self._company[symbol] = (time.time(), out)
+        return {**out, "cached": False}
+
+    def test(self) -> dict:
+        return self._get("/market/status")
+
+
 # --------------------------------------------------------------------------- yfinance
 class YFinanceProvider:
     name = "yfinance"
@@ -223,7 +337,8 @@ class YFinanceProvider:
         return df.astype(float)
 
 
-PROVIDERS = {p.name: p for p in (DemoProvider(), AlpacaProvider(), TwelveDataProvider(), YFinanceProvider())}
+PROVIDERS = {p.name: p for p in (DemoProvider(), AlpacaProvider(), TwelveDataProvider(), EquiblesProvider(),
+                                  YFinanceProvider())}
 
 
 def resolve_source(symbol: str, source: str = "auto") -> str:

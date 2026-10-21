@@ -46,6 +46,13 @@ def _status(db: Session) -> list[dict]:
          "help": "Optional. newsapi.org -> Get API key (free Developer plan: development only, 24 h delay, 100 "
                  "requests/day, articles up to a month old); paste it below.",
          "testable": bool(s.newsapi_key)},
+        {"key": "equibles", "name": "Equibles (prices + SEC fundamentals, insider & short data)",
+         "configured": bool(s.equibles_api_key), "fields": {"EQUIBLES_API_KEY": mask(s.equibles_api_key)},
+         "help": "Optional. equibles.com -> Start free (email code, no card) -> Dashboard -> API keys -> create a key and "
+                 "paste the FULL key below. Adds a Company data tab on the Data page (valuation, short interest, insider "
+                 "trades, ownership) and 'Equibles' as a daily-price source. Free plan: 100 requests/day, end-of-day "
+                 "data only; each company snapshot uses 5 and is cached for 6 hours.",
+         "testable": bool(s.equibles_api_key)},
         {"key": "yfinance", "name": "Yahoo Finance via yfinance (fallback)", "configured": True, "fields": {},
          "help": "No key needed. For personal / educational use only; not for redistribution.", "testable": True},
         {"key": "tradingview", "name": "TradingView webhook", "configured": True,
@@ -103,6 +110,11 @@ def test(db: Session, key: str) -> dict:
         if key == "newsapi":
             from trader.sentiment.news import newsapi_test
             return {"ok": True, "message": "NewsAPI OK", "detail": newsapi_test()}
+        if key == "equibles":
+            from trader.data.providers import PROVIDERS
+            js = PROVIDERS["equibles"].test()
+            return {"ok": True, "message": f"Equibles OK - US market session: {js.get('session', '?')} (1 request used)",
+                    "detail": js}
         if key == "yfinance":
             from trader.data.providers import PROVIDERS
             df = PROVIDERS["yfinance"].bars("SPY", "1Day", start=None)

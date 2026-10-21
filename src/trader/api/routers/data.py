@@ -85,6 +85,18 @@ def bars(symbol: str, timeframe: str = "1Day", start: str | None = None, end: st
             "indicators": out_ind}
 
 
+@router.get("/data/company/{symbol}")
+def company(symbol: str, refresh: bool = False):
+    """Equibles company snapshot (cached 6 h per symbol; refresh=true spends 5 requests of the daily allowance)."""
+    eq = P.PROVIDERS["equibles"]
+    if not eq.available():
+        raise HTTPException(400, "Equibles is not connected - paste your API key on the Integrations page")
+    try:
+        return eq.company(symbol, refresh)
+    except P.DataError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
 @router.get("/data/quality")
 def quality(symbol: str, timeframe: str = "1Day", max_move: float = 0.08, db: Session = Depends(get_db)):
     df = data.load_bars(db, symbol, timeframe)

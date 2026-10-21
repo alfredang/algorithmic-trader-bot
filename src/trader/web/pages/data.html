@@ -1,6 +1,6 @@
 <div x-data="dataPage()" class="space-y-4">
   <div class="tabs">
-    <template x-for="t in [['chart','Chart & indicators'],['instruments','Instruments & ingestion'],['quality','Data quality'],['news','News & sentiment'],['reference','Validate vs TradingView']]">
+    <template x-for="t in [['chart','Chart & indicators'],['instruments','Instruments & ingestion'],['quality','Data quality'],['news','News & sentiment'],['company','Company data'],['reference','Validate vs TradingView']]">
       <a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template>
   </div>
 
@@ -80,6 +80,85 @@
       <div x-show="scoreVal !== null" class="text-sm">Compound score: <b :class="QTS.cls(scoreVal)" x-text="QTS.num(scoreVal, 3)"></b> (−1 very negative … +1 very positive)</div>
       <p class="help">VADER lexicon (offline, deterministic) with finance-specific words added. Headlines are untrusted text: the AI agents receive them as data only and are told to ignore instructions inside them (prompt-injection defence).</p>
     </div>
+  </div>
+
+  <!-- company data (Equibles) -->
+  <div x-show="tab==='company'" class="space-y-4">
+    <div class="card flex flex-wrap items-end gap-3">
+      <div><label class="label">US ticker</label><input class="input w-32 uppercase" x-model="companySymbol" @keydown.enter="loadCompany()" placeholder="e.g. NVDA" :disabled="!eqConnected"></div>
+      <button class="btn-primary" @click="loadCompany()" :disabled="companyBusy || !eqConnected"><span x-show="companyBusy" class="spinner"></span>Load</button>
+      <button class="btn" @click="loadCompany(true)" :disabled="companyBusy || !eqConnected || !company" title="Skip the 6-hour cache (uses 5 requests)">Refresh</button>
+      <div class="flex-1 text-xs muted text-right" x-show="company">
+        <span x-text="company && (company.cached ? 'cached, fetched ' : 'fetched ') + QTS.ago(company.fetched_at)"></span> · source: <a class="link" href="https://equibles.com" target="_blank" rel="noopener">Equibles</a> (SEC EDGAR, FINRA)</div>
+    </div>
+    <div x-show="!eqConnected" class="empty">Company data comes from <b>Equibles</b>: valuation multiples, FINRA short interest, SEC insider trades and 13F ownership for US listings.
+      Get a free API key at <a class="link" href="https://equibles.com/dashboard/apikeys" target="_blank" rel="noopener">equibles.com</a> and paste it on the <a class="link" href="#/integrations">Integrations</a> page.</div>
+    <div x-show="companyErr" class="card text-sm neg" x-text="companyErr"></div>
+    <template x-if="company">
+      <div class="space-y-4">
+        <div x-show="company.notice" class="text-xs muted" x-text="company.notice"></div>
+        <div class="grid lg:grid-cols-3 gap-4">
+          <div class="card lg:col-span-2 space-y-3">
+            <div class="card-title"><span x-text="(company.valuation && company.valuation.companyName) || company.symbol"></span>
+              <span class="card-sub" x-text="company.valuation ? company.valuation.industry : ''"></span></div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm" x-show="company.latest">
+              <template x-for="m in [['Close', company.latest && QTS.usd(company.latest.close, 2), company.latest && company.latest.date],
+                                     ['1-day change', company.latest && (QTS.num(company.latest.changePercent) + '%'), ''],
+                                     ['52-week high', company.latest && QTS.usd(company.latest.high52Week, 2), 'closing high'],
+                                     ['52-week low', company.latest && QTS.usd(company.latest.low52Week, 2), 'closing low']]">
+                <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-2"><div class="text-xs muted" x-text="m[0]"></div><div class="font-semibold" x-text="m[1]"></div><div class="text-xs muted" x-text="m[2]"></div></div></template>
+            </div>
+            <template x-if="company.valuation">
+              <div class="scroll-x"><table class="t"><thead><tr><th>Trailing 12 months</th><th class="num">Company</th><th class="num">Peer median</th><th class="num">Peer 25th–75th</th></tr></thead>
+                <tbody>
+                  <template x-for="r in [['P/E', 'peRatio', 'pe'], ['EV / Revenue', 'evToRevenue', 'evToRevenue'], ['EV / EBIT', 'evToEbit', 'evToEbit']]">
+                    <tr><td x-text="r[0]"></td><td class="num font-semibold" x-text="QTS.num(company.valuation[r[1]])"></td>
+                      <td class="num" x-text="QTS.num((company.valuation.industryContext || {})[r[2] + 'Median'])"></td>
+                      <td class="num text-xs" x-text="QTS.num((company.valuation.industryContext || {})[r[2] + 'P25']) + ' – ' + QTS.num((company.valuation.industryContext || {})[r[2] + 'P75'])"></td></tr></template>
+                  <tr><td>Market cap / EV</td><td class="num" x-text="'$' + big(company.valuation.marketCap) + ' / $' + big(company.valuation.enterpriseValue)"></td><td colspan="2" class="text-xs muted" x-text="(company.valuation.industryContext || {}).peerCompanyCount + ' peers' + ((company.valuation.industryContext || {}).sizeBanded ? ' of similar size' : '')"></td></tr>
+                  <tr><td>Revenue / diluted EPS</td><td class="num" x-text="'$' + big(company.valuation.ttmRevenue) + ' / ' + QTS.num(company.valuation.ttmEpsDiluted)"></td><td colspan="2" class="text-xs muted" x-text="'window ends ' + (company.valuation.ttmRevenueWindowEnd || '–')"></td></tr>
+                </tbody></table></div>
+            </template>
+            <div x-show="company.errors.valuation" class="text-xs muted">No valuation multiples (ETFs and companies without the reported inputs have none).</div>
+          </div>
+          <div class="card space-y-2">
+            <div class="card-title">Ownership <span class="card-sub" x-text="company.ownership ? 'as of ' + company.ownership.reportDate : ''"></span></div>
+            <template x-if="company.ownership">
+              <div class="space-y-2 text-sm">
+                <template x-for="k in ['institutional','insiders','schedule13DGOnly','remaining']">
+                  <div x-show="company.ownership[k]">
+                    <div class="flex justify-between"><span x-text="company.ownership[k] && company.ownership[k].label"></span><b x-text="company.ownership[k] && company.ownership[k].percentOutstanding !== null ? QTS.num(company.ownership[k].percentOutstanding, 1) + '%' : '–'"></b></div>
+                    <div class="h-1.5 rounded bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded bg-brand-600" :style="'width:' + Math.max(0, Math.min(100, (company.ownership[k] && company.ownership[k].percentOutstanding) || 0)) + '%'"></div></div>
+                  </div></template>
+                <div class="text-xs muted" x-text="QTS.int((company.ownership.institutional || {}).holders) + ' 13F holders · ' + big(company.ownership.sharesOutstanding) + ' shares outstanding'"></div>
+                <div class="text-xs muted" x-show="company.ownership.percentUnavailableReason" x-text="company.ownership.percentUnavailableReason"></div>
+              </div>
+            </template>
+            <div x-show="company.errors.ownership" class="text-xs muted" x-text="company.errors.ownership"></div>
+          </div>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-4">
+          <div class="card scroll-x">
+            <div class="card-title">Short interest <span class="card-sub">FINRA, twice a month</span></div>
+            <div x-show="!(company.short_interest || []).length" class="empty text-sm" x-text="company.errors.short_interest || 'No short-interest settlements.'"></div>
+            <table class="t" x-show="(company.short_interest || []).length"><thead><tr><th>Settled</th><th class="num">Short</th><th class="num">Change</th><th class="num">Avg vol</th><th class="num" title="Days to cover">DTC</th></tr></thead>
+              <tbody><template x-for="s in company.short_interest || []" :key="s.settlementDate"><tr><td class="text-xs" x-text="s.settlementDate"></td><td class="num" x-text="big(s.shortPosition)"></td>
+                <td class="num" :class="QTS.cls(-s.changeInShortPosition)" x-text="big(s.changeInShortPosition)"></td><td class="num" x-text="big(s.averageDailyVolume)"></td><td class="num" x-text="QTS.num(s.daysToCover)"></td></tr></template></tbody></table>
+          </div>
+          <div class="card scroll-x">
+            <div class="card-title">Insider transactions <span class="card-sub">SEC Forms 4 / 5</span></div>
+            <div x-show="!(company.insider || []).length" class="empty text-sm" x-text="company.errors.insider || 'No insider transactions.'"></div>
+            <table class="t" x-show="(company.insider || []).length"><thead><tr><th>Date</th><th>Insider</th><th>Type</th><th class="num">Shares</th><th class="num">Value</th></tr></thead>
+              <tbody><template x-for="(t, idx) in company.insider || []" :key="idx"><tr><td class="text-xs whitespace-nowrap" x-text="t.transactionDate"></td>
+                <td class="text-xs"><span x-text="t.insiderName"></span> <span class="muted" x-text="t.role ? '· ' + t.role : ''"></span></td>
+                <td><span class="badge" :class="t.isOpenMarketTrade ? (t.transactionType === 'Buy' ? 'badge-ok' : 'badge-err') : 'badge-muted'" x-text="t.transactionCode || t.transactionType"></span></td>
+                <td class="num" x-text="big(t.shares)"></td><td class="num" x-text="t.value ? '$' + big(t.value) : '–'"></td></tr></template></tbody></table>
+            <p class="help">Green / red are open-market purchases / sales; awards, gifts, exercises and tax withholding are grey.</p>
+          </div>
+        </div>
+      </div>
+    </template>
+    <p class="help">Each load uses 5 Equibles requests (Free plan: 100 a day, resets 00:00 UTC) and is cached for 6 hours. US listings only. Data for research and education, not investment advice.</p>
   </div>
 
   <!-- reference -->

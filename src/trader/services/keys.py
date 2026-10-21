@@ -24,6 +24,7 @@ EDITABLE: dict[str, list[tuple[str, str, str, tuple[str, ...]]]] = {
                ("APCA_DATA_FEED", "Data feed", "select", ("iex", "sip"))],
     "twelvedata": [("TWELVEDATA_API_KEY", "API key", "secret", ())],
     "newsapi": [("NEWSAPI_KEY", "API key", "secret", ())],
+    "equibles": [("EQUIBLES_API_KEY", "API key (starts with eq_)", "secret", ())],
     "claude": [("ANTHROPIC_API_KEY", "Anthropic API key (starts with sk-ant-)", "secret", ())],
     "openai": [("OPENAI_API_KEY", "OpenAI API key (starts with sk-)", "secret", ())],
 }
@@ -32,7 +33,8 @@ _VALUE = re.compile(r"^[A-Za-z0-9_\-.:/+=]{1,512}$")
 
 _ATTR = {"APCA_API_KEY_ID": "alpaca_key_id", "APCA_API_SECRET_KEY": "alpaca_secret_key",
          "APCA_DATA_FEED": "alpaca_data_feed", "TWELVEDATA_API_KEY": "twelvedata_api_key",
-         "NEWSAPI_KEY": "newsapi_key", "ANTHROPIC_API_KEY": "anthropic_api_key", "OPENAI_API_KEY": "openai_api_key"}
+         "NEWSAPI_KEY": "newsapi_key", "EQUIBLES_API_KEY": "equibles_api_key",
+         "ANTHROPIC_API_KEY": "anthropic_api_key", "OPENAI_API_KEY": "openai_api_key"}
 
 
 class KeyError_(ValueError):

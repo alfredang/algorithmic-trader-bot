@@ -110,7 +110,7 @@ Optional **Under the hood** panels give the equivalent Python or an AI-assistant
 
 1. **Data > Instruments & ingestion.** Enter a symbol, pick a source and press **Fetch, check quality and cache**.
    - *auto* means Alpaca if you have keys, else the bundled demo file, else yfinance.
-   - You can also pick Alpaca, Twelve Data or yfinance directly.
+   - You can also pick Alpaca, Twelve Data, Equibles (daily bars only) or yfinance directly.
    - Daily and hourly bars are cached. Weekly and monthly bars are resampled from daily bars.
 2. **Chart & indicators.** Toggle overlays (SMA, EMA, Bollinger, Donchian, VWAP) and choose a lower pane (RSI, MACD, ATR,
    stochastic, OBV). The definitions match TradingView's built-ins, so you can cross-check values against your Pine chart.
@@ -121,7 +121,12 @@ Optional **Under the hood** panels give the equivalent Python or an AI-assistant
    - The source is NewsAPI.org if `NEWSAPI_KEY` is set, else Alpaca News, else synthetic sample headlines.
    - Each headline gets a VADER score from −1 to +1, and the scores are averaged per day.
    - You can test the model on your own sentence.
-5. **Validate vs TradingView (Lab 02).** Type the values you read in TradingView's Data Window for NASDAQ:AAPL or SGX:D05.
+5. **Company data.** Needs an Equibles key (Integrations page). Type a US ticker and press **Load**.
+   - You see the latest close and 52-week range, P/E, EV/Revenue and EV/EBIT against the median of similar-size peers,
+     13F / insider ownership, FINRA short interest and recent SEC insider transactions.
+   - Each load uses 5 of the 100 free daily requests and is cached for 6 hours. **Refresh** skips the cache.
+   - ETFs have no valuation multiples or insider trades; those sections say so.
+6. **Validate vs TradingView (Lab 02).** Type the values you read in TradingView's Data Window for NASDAQ:AAPL or SGX:D05.
    - The app compares them with **RAW** bars (split-adjusted only, which is TradingView's default) and **ADJUSTED** bars
      (split- and dividend-adjusted, which is what backtests use).
    - It gives a PASS / FAIL verdict and the adjustment factor.
@@ -392,7 +397,7 @@ wake-up the agent:
 
 ![Integrations](screenshots/integrations.png)
 
-**Integrations** has a card for each service: Alpaca, Twelve Data, NewsAPI, yfinance, TradingView, OpenAI Codex (Sign in
+**Integrations** has a card for each service: Alpaca, Twelve Data, NewsAPI, Equibles, yfinance, TradingView, OpenAI Codex (Sign in
 with ChatGPT), Claude (Agent SDK, API key), OpenAI Agents SDK, and the database. Each card shows:
 
 - the connection status, with values **masked**

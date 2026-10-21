@@ -181,6 +181,7 @@
       fetchForm: { symbol: q.symbol || 'SPY', source: q.source || 'auto', timeframe: '1Day', start: '2018-01-01' }, fetching: false,
       news: [], sentiment: [], newsSource: 'auto', newsBusy: false, ref: null, refSymbol: q.ref || 'AAPL', refDate: '2025-12-31',
       tv: { open: '', high: '', low: '', close: '' }, catalog: [], QTS: Q, scoreText: '', scoreVal: null,
+      company: null, companySymbol: (q.symbol || 'AAPL').toUpperCase(), companyBusy: false, companyErr: '',
       async init() {
         const [i, s, c] = await Promise.all([Q.get('/api/instruments'), Q.get('/api/data/sources'), Q.get('/api/data/indicators')]);
         Object.assign(this, { instruments: i, sources: s, catalog: c });
@@ -188,7 +189,7 @@
         Q.on('theme', () => this.drawChart());
         Q.on('data.ingested', async () => { this.instruments = await Q.get('/api/instruments', true); });
       },
-      setTab(t) { this.tab = t; this.$nextTick(() => { if (t === 'chart') this.drawChart(); if (t === 'quality') this.loadQuality(); if (t === 'news') this.loadNews(); if (t === 'reference') this.loadRef(); }); },
+      setTab(t) { this.tab = t; this.$nextTick(() => { if (t === 'chart') this.drawChart(); if (t === 'quality') this.loadQuality(); if (t === 'news') this.loadNews(); if (t === 'reference') this.loadRef(); if (t === 'company' && this.eqConnected && !this.company) this.loadCompany(); }); },
       toggleOverlay(o) { const i = this.overlays.indexOf(o); if (i >= 0) this.overlays.splice(i, 1); else this.overlays.push(o); this.drawChart(); },
       async drawChart() {
         const ind = [...this.overlays, this.osc].filter(Boolean).join(',');
@@ -227,6 +228,15 @@
       },
       async score() { this.scoreVal = (await Q.post('/api/sentiment/score', { text: this.scoreText })).score; },
       async loadRef() { this.ref = await Q.get(`/api/data/reference/${this.refSymbol}?date=${this.refDate}`); },
+      get eqConnected() { return this.sources.some((s) => s.name === 'equibles' && s.available); },
+      async loadCompany(refresh = false) {
+        const sym = this.companySymbol.trim().toUpperCase(); if (!sym) return;
+        this.companyBusy = true; this.companyErr = '';
+        try { this.company = await Q.get(`/api/data/company/${encodeURIComponent(sym)}?refresh=${refresh}`, true); }
+        catch (e) { this.company = null; this.companyErr = e.message; }
+        finally { this.companyBusy = false; }
+      },
+      big(v) { if (v === null || v === undefined || isNaN(v)) return '–'; const a = Math.abs(v); const [d, u] = a >= 1e12 ? [1e12, 'T'] : a >= 1e9 ? [1e9, 'B'] : a >= 1e6 ? [1e6, 'M'] : a >= 1e3 ? [1e3, 'K'] : [1, '']; return (v / d).toFixed(u ? 2 : 0) + u; },
       diff(field, base) { const v = parseFloat(this.tv[field]); if (!v || !base) return ''; return ((v / base - 1) * 100).toFixed(3) + '%'; },
       verdict() {
         if (!this.ref || !this.tv.close) return '';
