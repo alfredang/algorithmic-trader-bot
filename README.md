@@ -3,7 +3,7 @@
 **A quant / algorithmic trading simulator for learning, paper trading only.** It is the companion software for the IBF course
 **Machine Learning 101 for Financial Trading** by Tertiary Infotech Academy Pte Ltd. You can do all 20 course labs in the app:
 data, indicators, strategies, backtests with realistic costs, research and statistics, a multi-agent AI desk, and automated
-paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twelve Data, NewsAPI or an AI login when you need them.
+paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twelve Data, Equibles, NewsAPI or an AI login when you need them.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
@@ -50,17 +50,27 @@ course simulator:
   connected AI writes it; with no AI, a built-in interpreter covers the common strategy families), shows the rules it
   understood, and backtests it with costs in one click.
 - **No terminal for keys.** Paste API keys into the **Integrations** page and press **Save & test**: they are used at once,
-  stored only on your computer (`data/keys.env`) and always shown masked.
+  stored only on your computer (`data/keys.env`, git-ignored) and always shown masked.
+- **Company data from Equibles.** With a free [Equibles](https://equibles.com) key, **Data > Company data** shows valuation
+  multiples against peers, FINRA short interest, SEC insider trades and 13F ownership for any US ticker, and Equibles
+  becomes a daily-price source.
+- **Strategy library in lab order.** Strategies are grouped by type in the order the labs teach them (benchmark, trend,
+  momentum, mean reversion, breakout, pairs, ML, sentiment and agents, execution, market making, custom) and can be
+  filtered by the lab that uses them.
+- **Run history on Analytics.** Search and filter every backtest, tick 2-5 runs to compare, and delete your own runs. The
+  course sample runs the labs refer to are protected and always listed.
+- **TSLA in the demo data** (13 symbols), with EMA crossover and buy-and-hold samples on AAPL and TSLA, and a date range
+  (**From / To**) on the Data chart.
 - The v1 code is kept, unchanged, in [`legacy/`](legacy/) for reference. It is the only place Gemini still appears.
 
 ## Features mapped to the course
 
 | Course topic | In the app |
 |---|---|
-| **1. Foundations** - quant history, forms of data, big data, hypotheses, AI agents vs agentic AI | **Data:** Alpaca / Twelve Data / yfinance / offline demo ingestion, multi-timeframe bars, data-quality checks (gaps, splits, duplicates, timezone), NewsAPI + Alpaca News headlines with VADER sentiment, and validation against TradingView (raw vs adjusted, SGX:D05 + AAPL). **Research > Hypothesis test:** H0/H1, Welch t-test, bootstrap CI, robustness grid and Bonferroni. **AI Agents** page: the taxonomy (agentic AI vs AI agent). |
-| **2. Indicators, strategies, metrics, TradingView & Alpaca** | **Chart:** TradingView Lightweight Charts with SMA/EMA, Bollinger, Donchian, VWAP, RSI, MACD, ATR, stochastic and OBV. **Strategy library:** buy-and-hold, SMA/EMA crossover, MACD, RSI, RSI(2), Bollinger reversion and breakout, Donchian, time-series and cross-sectional momentum, dip-buy, pairs, regime-filtered, ML (logistic / random forest / XGBoost), sentiment, VWAP/TWAP/POV execution, market making and the agentic desk. Each has course explanations and classification tags. **Pine Script v6 export.** **Order ticket:** market, limit, stop, bracket, time-in-force and 24/5 extended hours. **Analytics:** every course metric. |
+| **1. Foundations** - quant history, forms of data, big data, hypotheses, AI agents vs agentic AI | **Data:** Alpaca / Twelve Data / Equibles / yfinance / offline demo ingestion (13 symbols), multi-timeframe bars, Equibles company data (valuation, short interest, insider trades, ownership), data-quality checks (gaps, splits, duplicates, timezone), NewsAPI + Alpaca News headlines with VADER sentiment, and validation against TradingView (raw vs adjusted, SGX:D05 + AAPL). **Research > Hypothesis test:** H0/H1, Welch t-test, bootstrap CI, robustness grid and Bonferroni. **AI Agents** page: the taxonomy (agentic AI vs AI agent). |
+| **2. Indicators, strategies, metrics, TradingView & Alpaca** | **Chart:** TradingView Lightweight Charts with SMA/EMA, Bollinger, Donchian, VWAP, RSI, MACD, ATR, stochastic and OBV. **Strategy library:** buy-and-hold, SMA/EMA crossover, MACD, RSI, RSI(2), Bollinger reversion and breakout, Donchian, time-series and cross-sectional momentum, dip-buy, pairs, regime-filtered, ML (logistic / random forest / XGBoost), sentiment, VWAP/TWAP/POV execution, market making and the agentic desk, grouped by strategy type in lab order and filterable by lab. Each has course explanations and classification tags. **Pine Script v6 export.** **Order ticket:** market, limit, stop, bracket, time-in-force and 24/5 extended hours. **Analytics:** every course metric. |
 | **3. ML, statistics, A/B testing** | **Research:** grid search with in-sample / out-of-sample decay heatmap and robust region, walk-forward optimisation, ML classifiers with walk-forward validation (AUC, feature importance), PCA + walk-forward K-means regimes with a gate, A/B test (Welch, paired, block-bootstrap Sharpe CI, decision, multiple-testing caution), and an Engle-Granger cointegration screen with a hedged pairs backtest. |
-| **4. End-to-end pipeline** - backtest with costs, forward test, diagnostics, reporting | **Backtest engine:** next-bar execution (no look-ahead), commission per share / bps / minimum, spread, slippage, SEC/FINRA fees on sells, borrow, long/short, multi-asset, position sizing (percent, fixed, vol-target, ATR), stop-loss / take-profit, gross vs net and break-even cost. **Paper trading bots:** scheduled, with risk checks and kill switches, an offline replay mode and live mode (Alpaca 24/5). **TradingView webhook.** **Diagnostics:** look-ahead, cost drag, overfitting, survivorship. **Tearsheet** PDF/CSV and backtest vs forward comparison. **Pipeline Map** of all 14 stages. |
+| **4. End-to-end pipeline** - backtest with costs, forward test, diagnostics, reporting | **Backtest engine:** next-bar execution (no look-ahead), commission per share / bps / minimum, spread, slippage, SEC/FINRA fees on sells, borrow, long/short, multi-asset, position sizing (percent, fixed, vol-target, ATR), stop-loss / take-profit, gross vs net and break-even cost. **Paper trading bots:** scheduled, with risk checks and kill switches, an offline replay mode and live mode (Alpaca 24/5). **TradingView webhook.** **Diagnostics:** look-ahead, cost drag, overfitting, survivorship. **Tearsheet** PDF/CSV, backtest vs forward comparison, and a searchable **run history** (compare 2-5 runs, delete your own; course samples are protected). **Pipeline Map** of all 14 stages. |
 | **Course labs 1-20** | **Course Labs** page, driven by [`labs/course_labs.yaml`](labs/course_labs.yaml). It gives step-by-step checklists with deep links and presets, saves progress per user, and offers optional "under the hood" Python. |
 
 More highlights:
@@ -98,7 +108,7 @@ flowchart LR
   end
   Worker["worker (APScheduler)<br/>bots · always-on agent · sim matching"]
   DB[("SQLite / Postgres<br/>SQLAlchemy 2 + Alembic")]
-  Ext["Alpaca · Twelve Data · yfinance<br/>NewsAPI · TradingView"]
+  Ext["Alpaca · Twelve Data · Equibles · yfinance<br/>NewsAPI · TradingView"]
   UI <--> API
   API --> Core & Strat & Broker & Agents & WH
   Worker --> Broker & Agents & Core
@@ -113,7 +123,7 @@ flowchart LR
 |---|---|
 | Backend | FastAPI, SQLAlchemy 2, Alembic, pydantic-settings, APScheduler, SSE |
 | Quant | pandas, NumPy, SciPy, scikit-learn, XGBoost, VADER, matplotlib (tearsheets) |
-| Brokers / data | alpaca-py (`paper=True`), Twelve Data REST, yfinance, NewsAPI, bundled demo CSVs |
+| Brokers / data | alpaca-py (`paper=True`), Twelve Data REST, Equibles REST, yfinance, NewsAPI, bundled demo CSVs |
 | AI | `openai-codex` (Codex SDK, ChatGPT login), `claude-agent-sdk`, `openai-agents` (optional extra `ai`) |
 | Frontend | Static HTML/JS: Alpine.js 3, Tailwind (Play CDN), TradingView Lightweight Charts 5, Chart.js 4, CodeMirror 5, marked |
 | Deployment | uv (SQLite) or Docker Compose (`db` postgres:16, `backend`, `worker`, `frontend` nginx) |
@@ -252,11 +262,12 @@ Every variable is optional. See [`.env.example`](.env.example).
 | `RUN_SCHEDULER_IN_PROCESS` | `false` | Run the worker inside the web process. |
 | `AUTO_SEED` | `false` | Seed the demo data if the DB is empty. |
 | `DESK_TIMEZONE` | `Asia/Singapore` | Desk timezone shown with the US clock. |
-| `DEFAULT_DATA_SOURCE` | `auto` | `auto`, `demo`, `alpaca`, `twelvedata` or `yfinance`. |
+| `DEFAULT_DATA_SOURCE` | `auto` | `auto`, `demo`, `alpaca`, `twelvedata`, `equibles` or `yfinance`. |
 | `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` | blank | Alpaca **paper** keys. |
 | `APCA_DATA_FEED` | `iex` | `iex` (free) or `sip`. |
 | `TWELVEDATA_API_KEY` | blank | Twelve Data time series. |
 | `NEWSAPI_KEY` | blank | NewsAPI.org headlines. |
+| `EQUIBLES_API_KEY` | blank | Equibles daily prices and company data (valuation, short interest, insiders, ownership). |
 | `AI_PROVIDER` | `auto` | `auto`, `rules`, `codex`, `claude` or `openai`. |
 | `ANTHROPIC_API_KEY` | blank | Claude Agent SDK (API key auth). |
 | `CLAUDE_MODEL` / `CLAUDE_MODEL_DEEP` | `claude-sonnet-5-5` / `claude-opus-5-5` | Claude models. |
@@ -291,6 +302,13 @@ Every variable is optional. See [`.env.example`](.env.example).
   - Pine Script v6 exports, with `alert_message` included, are in the Strategy Library.
 - **Twelve Data.** Set `TWELVEDATA_API_KEY` and pick "Twelve Data" as the source on the Data page. The key is checked
   against `/api_usage`.
+- **Equibles.** Paste a key from equibles.com > Dashboard > API keys on the Integrations page (or set `EQUIBLES_API_KEY`).
+  - **Data > Company data** shows valuation multiples against peers, FINRA short interest, SEC insider transactions and
+    13F ownership for a US ticker. Each load uses 5 requests and is cached for 6 hours.
+  - "Equibles" is also a daily-price source on the Data page (OHLC scaled by `adjustedClose`, so bars are split- and
+    dividend-adjusted like the other sources). Intraday bars are not available.
+  - The free plan allows 100 requests a day, shared with Equibles' MCP server, and resets at 00:00 UTC. The
+    connection test calls `/v1/market/status` (1 request).
 - **NewsAPI.** Set `NEWSAPI_KEY`. The app uses `/v2/everything` with the `X-Api-Key` header. The free Developer plan is for
   development only (24 h delay, 100 requests/day).
 - **LLM providers.** See [AI login](#ai-login-optional). The Integrations page shows the login status, the exact login
@@ -354,7 +372,8 @@ There are lab-by-lab screenshots in [`docs/screenshots/labs/`](docs/screenshots/
 ```bash
 uv sync                   # dev tools (pytest, ruff) are in the default dev group
 uv run pytest             # offline suite - indicators, metrics, backtest, costs, pairs, A/B, risk, broker, strategies,
-                          #   multi-agent orchestration (LLM mocked), API endpoints, migrations
+                          #   multi-agent orchestration (LLM mocked), API endpoints, in-app keys, Equibles (HTTP mocked),
+                          #   migrations
 uv run ruff check src tests alembic
 uv run alembic revision --autogenerate -m "..."   # after changing models
 ```
