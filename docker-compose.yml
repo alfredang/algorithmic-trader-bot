@@ -39,6 +39,8 @@ services:
       <<: *app-env
       RUN_SCHEDULER_IN_PROCESS: "false"
     command: ["trader", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - appdata:/app/data        # keys saved from the Integrations page (data/keys.env), shared with the worker
     expose: ["8000"]
     depends_on:
       db:
@@ -59,6 +61,8 @@ services:
     environment:
       <<: *app-env
     command: ["trader", "worker"]
+    volumes:
+      - appdata:/app/data
     depends_on:
       backend:
         condition: service_healthy
@@ -83,3 +87,4 @@ services:
 
 volumes:
   pgdata:
+  appdata:

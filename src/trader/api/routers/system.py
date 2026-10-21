@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 import yaml
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
@@ -91,6 +92,34 @@ def integrations(db: Session = Depends(get_db)):
     out = INT.status(db)
     db.commit()
     return out
+
+
+@router.put("/integrations/{key}/keys")
+def integration_keys(key: str, request: Request, body: dict = Body(...)):
+    """Save API keys pasted into the Integrations page (to <DATA_DIR>/keys.env, never the DB)."""
+    from trader.services import keys as K
+    host = (request.client.host if request.client else "") or ""
+    if os.environ.get("ALLOW_UI_KEYS", "true").lower() in ("0", "false", "no"):
+        raise HTTPException(403, "Saving keys from the app is disabled (ALLOW_UI_KEYS=false); edit .env instead.")
+    if not _local_client(host):
+        raise HTTPException(403, "Keys can only be saved from this computer or your private network.")
+    try:
+        fields = K.save(key, values=body.get("values") or {}, clear=body.get("clear") or [])
+    except K.KeyError_ as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "editable": fields,
+            "message": "Saved on this computer only (data/keys.env). It is used at once - no restart needed."}
+
+
+def _local_client(host: str) -> bool:
+    import ipaddress
+    if host in ("localhost", "testclient", ""):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private
 
 
 @router.post("/integrations/{key}/test")

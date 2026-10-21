@@ -1,11 +1,14 @@
 """Application settings (pydantic-settings). Every value can be set in the environment or in ``.env``.
 
-Secrets are read from the environment only; they are never written to the database
-and the API only ever returns masked values.
+API keys can also be pasted into the app (Integrations page). Those are saved to
+``<DATA_DIR>/keys.env`` on this computer only - never to the database or git - and
+they take precedence over ``.env``. Settings are re-read whenever that file changes,
+so a saved key works at once in the web app and the background worker, no restart.
+The API only ever returns masked values.
 """
 from __future__ import annotations
 
-from functools import lru_cache
+import os
 from pathlib import Path
 
 from pydantic import Field
@@ -67,13 +70,52 @@ class Settings(BaseSettings):
         return self.database_url.startswith("sqlite")
 
 
-@lru_cache
+def keys_file() -> Path:
+    """Where keys pasted into the app are stored (``<DATA_DIR>/keys.env``)."""
+    return Path(os.environ.get("DATA_DIR", "./data")) / "keys.env"
+
+
+def read_keys_file(path: Path | None = None) -> dict[str, str]:
+    path = path or keys_file()
+    out: dict[str, str] = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip()
+    except FileNotFoundError:
+        pass
+    return out
+
+
+_CACHE: dict = {"stamp": None, "settings": None}
+
+
+def _stamp():
+    try:
+        st = keys_file().stat()
+        return (str(keys_file()), st.st_mtime_ns, st.st_size)
+    except FileNotFoundError:
+        return (str(keys_file()), None, None)
+
+
 def get_settings() -> Settings:
-    return Settings()
+    """Cached settings, rebuilt when the in-app keys file changes (cheap stat per call)."""
+    stamp = _stamp()
+    if _CACHE["settings"] is None or _CACHE["stamp"] != stamp:
+        saved = {k: v for k, v in read_keys_file().items() if v}
+        _CACHE["settings"] = Settings(**saved)      # init values (aliases) beat env vars and .env
+        _CACHE["stamp"] = stamp
+    return _CACHE["settings"]
 
 
 def reset_settings() -> None:
-    get_settings.cache_clear()
+    _CACHE["settings"] = None
+
+
+get_settings.cache_clear = reset_settings          # backwards-compatible with the old lru_cache API
 
 
 def mask(value: str | None) -> str:

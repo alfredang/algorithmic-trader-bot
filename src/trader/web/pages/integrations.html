@@ -1,11 +1,38 @@
 <div x-data="integrationsPage()" class="space-y-4">
-  <div class="rounded-lg bg-slate-100 dark:bg-slate-800/60 p-3 text-sm">Keys live in your <code>.env</code> file (copy <code>.env.example</code>), never in the database; this page only shows masked values. Edit <code>.env</code> and restart the app to change them. <b>Paper trading only</b> - Alpaca is always used with <code>paper=True</code>.</div>
+  <div class="rounded-lg bg-slate-100 dark:bg-slate-800/60 p-3 text-sm space-y-1">
+    <div><b>Everything works without keys</b> - the offline demo data and the built-in paper broker run every course lab. Add a key only when you want live data or your own Alpaca paper account.</div>
+    <div><b>To connect:</b> paste the key into its card below and press <b>Save &amp; test</b>. It is used straight away - no terminal, no restart. Keys are stored only on this computer (<code>data/keys.env</code>, never in the database or on GitHub) and this page only ever shows them masked. <b>Paper trading only</b> - Alpaca is always used with <code>paper=True</code>.</div>
+  </div>
   <div class="grid lg:grid-cols-2 gap-4">
     <template x-for="it in items.filter(i => i.key !== 'tradingview')" :key="it.key">
       <div class="card space-y-2">
         <div class="flex items-center gap-2"><div class="font-semibold flex-1" x-text="it.name"></div><span class="badge" :class="it.configured ? 'badge-ok' : 'badge-muted'" x-text="it.configured ? 'connected' : 'not configured'"></span></div>
         <div class="text-sm muted" x-text="it.help"></div>
-        <div class="grid grid-cols-1 gap-1 text-xs"><template x-for="(v,k) in it.fields"><div class="flex gap-2"><span class="muted w-44 shrink-0 mono" x-text="k"></span><span class="mono break-all" x-text="v || '(blank)'"></span></div></template></div>
+        <template x-if="!(it.editable && it.editable.length)"><div class="grid grid-cols-1 gap-1 text-xs"><template x-for="(v,k) in it.fields"><div class="flex gap-2"><span class="muted w-44 shrink-0 mono" x-text="k"></span><span class="mono break-all" x-text="v || '(blank)'"></span></div></template></div></template>
+        <template x-if="it.editable && it.editable.length">
+          <form class="space-y-2" @submit.prevent="saveKeys(it)" autocomplete="off">
+            <template x-for="f in it.editable" :key="f.name">
+              <div>
+                <label class="label" :for="it.key + f.name"><span x-text="f.label"></span>
+                  <span class="text-xs muted" x-show="f.current" x-text="' - current: ' + f.current + (f.source ? ' (' + f.source + ')' : '')"></span></label>
+                <template x-if="f.kind === 'select'">
+                  <select class="input" :id="it.key + f.name" x-model="form(it.key)[f.name]"><option value="">keep (<span x-text="f.current"></span>)</option><template x-for="o in f.options"><option :value="o" x-text="o"></option></template></select>
+                </template>
+                <template x-if="f.kind !== 'select'">
+                  <div class="flex gap-2">
+                    <input class="input mono flex-1" :id="it.key + f.name" :type="show[it.key + f.name] ? 'text' : 'password'" spellcheck="false" autocomplete="new-password"
+                           :placeholder="f.current ? 'saved - paste a new key to replace it' : 'paste your key here'" x-model="form(it.key)[f.name]">
+                    <button type="button" class="btn btn-xs" @click="show[it.key + f.name] = !show[it.key + f.name]" x-text="show[it.key + f.name] ? 'Hide' : 'Show'"></button>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <div class="flex items-center gap-2">
+              <button type="submit" class="btn-primary btn-xs" :disabled="busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Save &amp; test</button>
+              <button type="button" class="btn-link text-xs text-red-600" x-show="it.editable.some((f) => f.saved_in_app)" @click="clearKeys(it)">Remove saved keys</button>
+            </div>
+          </form>
+        </template>
         <div x-show="it.mode" class="text-xs" x-text="it.mode"></div>
         <template x-if="it.login_command"><div class="flex items-center gap-2 text-xs"><code class="flex-1 p-1.5 break-all" x-text="it.login_command"></code><button class="btn btn-xs" @click="QTS.copy(it.login_command)">Copy</button></div></template>
         <template x-if="it.terms"><details class="text-xs"><summary class="cursor-pointer font-semibold">Provider terms (read before use)</summary>

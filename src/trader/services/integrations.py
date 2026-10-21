@@ -18,6 +18,10 @@ def _db_url_masked(url: str) -> str:
 
 
 def status(db: Session) -> list[dict]:
+    return _with_forms(_status(db))
+
+
+def _status(db: Session) -> list[dict]:
     s = get_settings()
     from trader.services import webhook as WH
     sec, src = WH.secret(db)
@@ -28,17 +32,19 @@ def status(db: Session) -> list[dict]:
          "fields": {"APCA_API_KEY_ID": mask(s.alpaca_key_id), "APCA_API_SECRET_KEY": mask(s.alpaca_secret_key),
                     "APCA_DATA_FEED": s.alpaca_data_feed},
          "mode": "paper=True (hard-coded - no live trading)",
-         "help": "alpaca.markets -> Paper Trading -> API Keys -> Generate. Put the key id and secret in .env. "
-                 "Without keys the built-in simulator broker and the offline demo data are used.",
+         "help": "app.alpaca.markets -> switch to your Paper account -> Home -> API Keys -> Generate New Keys. "
+                 "Paste the Key ID and Secret below and press Save. Without keys the built-in simulator broker "
+                 "and the offline demo data are used.",
          "testable": s.alpaca_configured},
         {"key": "twelvedata", "name": "Twelve Data (time series)", "configured": bool(s.twelvedata_api_key),
          "fields": {"TWELVEDATA_API_KEY": mask(s.twelvedata_api_key)},
-         "help": "twelvedata.com -> API keys. Used when you pick 'Twelve Data' as the source on the Data page.",
+         "help": "Optional. twelvedata.com -> sign up (free) -> API keys; paste it below. Used when you pick "
+                 "'Twelve Data' as the source on the Data page.",
          "testable": bool(s.twelvedata_api_key)},
         {"key": "newsapi", "name": "NewsAPI.org (headlines)", "configured": bool(s.newsapi_key),
          "fields": {"NEWSAPI_KEY": mask(s.newsapi_key)},
-         "help": "newsapi.org -> Get API key. The free Developer plan is for development only (24 h delay, 100 "
-                 "requests/day, articles up to a month old).",
+         "help": "Optional. newsapi.org -> Get API key (free Developer plan: development only, 24 h delay, 100 "
+                 "requests/day, articles up to a month old); paste it below.",
          "testable": bool(s.newsapi_key)},
         {"key": "yfinance", "name": "Yahoo Finance via yfinance (fallback)", "configured": True, "fields": {},
          "help": "No key needed. For personal / educational use only; not for redistribution.", "testable": True},
@@ -71,6 +77,13 @@ def status(db: Session) -> list[dict]:
          "fields": {"DATABASE_URL": _db_url_masked(s.database_url)}, "help": "SQLite by default; Postgres in Docker Compose.",
          "testable": True},
     ]
+
+
+def _with_forms(items: list[dict]) -> list[dict]:
+    from trader.services import keys as K
+    for it in items:
+        it["editable"] = K.fields_for(it["key"])
+    return items
 
 
 def test(db: Session, key: str) -> dict:

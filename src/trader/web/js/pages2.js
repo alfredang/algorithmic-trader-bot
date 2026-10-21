@@ -236,6 +236,26 @@
       async toggleReveal() { this.reveal = !this.reveal; this.tpl = await Q.get('/api/webhooks/template?reveal=' + this.reveal); },
       async saveWh() { await Q.put('/api/webhooks/config', { ...this.wh, allowed_symbols: Q.symbolsFrom(Array.isArray(this.wh.allowed_symbols) ? this.wh.allowed_symbols.join(',') : this.wh.allowed_symbols), max_order_qty: parseFloat(this.wh.max_order_qty) }); Q.toast('Webhook settings saved', 'ok'); await this.load(); },
       byKey(k) { return this.items.find((i) => i.key === k); },
+      forms: {}, show: {},
+      form(k) { return (this.forms[k] = this.forms[k] || {}); },
+      async saveKeys(it) {
+        const values = {};
+        for (const f of it.editable) { const v = (this.form(it.key)[f.name] || '').trim(); if (v) values[f.name] = v; }
+        if (!Object.keys(values).length) { Q.toast('Paste a key first', 'error'); return; }
+        this.busy[it.key] = true;
+        try {
+          const r = await Q.put(`/api/integrations/${it.key}/keys`, { values });
+          this.forms[it.key] = {}; Q.toast(r.message, 'ok');
+          this.items = await Q.get('/api/integrations');
+          if (this.byKey(it.key) && this.byKey(it.key).testable) await this.test(it.key);
+        } finally { this.busy[it.key] = false; }
+      },
+      async clearKeys(it) {
+        const names = it.editable.filter((f) => f.saved_in_app).map((f) => f.name);
+        if (!names.length || !confirm('Remove the ' + it.name.split(' (')[0] + ' keys saved in the app?')) return;
+        await Q.put(`/api/integrations/${it.key}/keys`, { clear: names });
+        Q.toast('Removed', 'ok'); this.results[it.key] = null; this.items = await Q.get('/api/integrations');
+      },
     };
   };
 
