@@ -121,6 +121,10 @@ class Provider:
     def run_native(self, ctx: dict, reports: dict) -> dict[str, dict]:   # pragma: no cover - overridden
         raise NotImplementedError
 
+    def complete(self, system: str, prompt: str) -> str:
+        """One-shot text completion (used by Idea -> Strategy). The rule brain has no language model."""
+        raise ProviderError("the rule-based brain cannot write code - connect an AI provider")
+
 
 class RulesProvider(Provider):
     pass
@@ -176,6 +180,13 @@ class ClaudeProvider(Provider):
             elif isinstance(m, ResultMessage) and m.result:
                 texts.append(m.result)
         return "\n".join(texts), msgs
+
+    def complete(self, system: str, prompt: str) -> str:
+        text, _ = asyncio.run(asyncio.wait_for(
+            self._ask(system, prompt, max_turns=1,
+                      disallowed_tools=["Bash", "Write", "Edit", "Read", "WebFetch", "WebSearch", "Agent", "Task"]),
+            get_settings().agent_timeout_s))
+        return text
 
     def run_role(self, role: Role, ctx: dict, reports: dict, round_no: int = 1) -> dict:
         text, _ = asyncio.run(asyncio.wait_for(
@@ -288,6 +299,13 @@ class OpenAIAgentsProvider(Provider):
         kw = {"model": self.model} if self.model else {}
         return Agent(name=role.title, instructions=role.system_prompt(), tools=tools, **kw)
 
+    def complete(self, system: str, prompt: str) -> str:
+        from agents import Agent, Runner, set_default_openai_key
+        set_default_openai_key(get_settings().openai_api_key)
+        kw = {"model": self.model} if self.model else {}
+        res = Runner.run_sync(Agent(name="Strategy author", instructions=system, **kw), prompt, max_turns=1)
+        return str(res.final_output)
+
     def run_role(self, role: Role, ctx: dict, reports: dict, round_no: int = 1) -> dict:
         from agents import Runner, set_default_openai_key
         set_default_openai_key(get_settings().openai_api_key)
@@ -363,6 +381,26 @@ class CodexProvider(Provider):
             return False, "not logged in - run: codex login (Sign in with ChatGPT)"
         self.auth_mode = "chatgpt_login" if st.get("method") == "chatgpt" else "api_key"
         return True, st.get("detail") or "logged in"
+
+    def complete(self, system: str, prompt: str) -> str:
+        try:
+            from openai_codex import ApprovalMode, Codex, Sandbox
+            with Codex() as codex:
+                kw = {"model": self.model} if self.model else {}
+                th = codex.thread_start(base_instructions=system, ephemeral=True, sandbox=Sandbox.read_only,
+                                        approval_mode=ApprovalMode.deny_all, **kw)
+                return th.run(prompt, output_schema=None).final_response or ""
+        except ImportError:
+            pass
+        exe = codex_binary()
+        if not exe:
+            raise ProviderError("Codex CLI not found")
+        p = subprocess.run([exe, "exec", "--skip-git-repo-check", "--ephemeral", "--sandbox", "read-only",
+                            *(["-m", self.model] if self.model else []), f"{system}\n\n{prompt}"],
+                           capture_output=True, text=True, timeout=get_settings().agent_timeout_s)
+        if p.returncode != 0:
+            raise ProviderError(p.stderr[-500:])
+        return p.stdout
 
     def run_role(self, role: Role, ctx: dict, reports: dict, round_no: int = 1) -> dict:
         schema = {"type": "object", "properties": {k: {} for k in role.output}, "required": list(role.output),

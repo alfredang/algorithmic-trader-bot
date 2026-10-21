@@ -1,5 +1,40 @@
 <div x-data="builderPage()" class="grid xl:grid-cols-3 gap-4">
   <div class="xl:col-span-2 space-y-3">
+    <!-- Idea -> Strategy: the no-code path -->
+    <div class="card space-y-3">
+      <div class="card-title">Describe your trading idea <span class="card-sub">no coding - the app writes, checks and saves the strategy, then you test it</span></div>
+      <textarea class="input w-full" rows="3" x-model="idea" placeholder="e.g. Buy when RSI(14) drops below 30 and sell when it rises above 70"></textarea>
+      <div class="flex flex-wrap gap-1.5">
+        <template x-for="e in examples" :key="e"><button type="button" class="btn btn-xs" @click="idea = e" x-text="e.length > 60 ? e.slice(0, 58) + '…' : e" :title="e"></button></template>
+      </div>
+      <div class="flex flex-wrap items-end gap-3">
+        <div><label class="label">Test on</label><input class="input w-28" x-model="symbols" title="symbol to test the idea on"></div>
+        <button class="btn-primary" @click="fromIdea()" :disabled="ideaBusy || idea.trim().length < 8"><span x-show="ideaBusy" class="spinner"></span>Turn my idea into a strategy</button>
+        <span class="text-xs muted">Uses your connected AI (see Integrations); without one, the built-in interpreter handles the common strategy families.</span>
+      </div>
+      <template x-if="ideaRes && ideaRes.ok">
+        <div class="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2 text-sm">
+          <div class="flex flex-wrap items-center gap-2"><span class="badge badge-ok">READY</span><b x-text="ideaRes.name"></b>
+            <span class="text-xs muted" x-text="'written by ' + (ideaRes.source.startsWith('ai:') ? 'AI (' + ideaRes.source.slice(3) + ')' : ideaRes.source)"></span>
+            <span class="badge" x-show="ideaRes.validation && ideaRes.validation.lookahead" :class="QTS.statusBadge(ideaRes.validation.lookahead && ideaRes.validation.lookahead.status)" x-text="'look-ahead check: ' + (ideaRes.validation.lookahead && ideaRes.validation.lookahead.status)"></span></div>
+          <div class="text-xs font-semibold">How the app understood your idea - check these are the rules you meant:</div>
+          <ul class="list-disc ml-5"><template x-for="b in ideaRes.explanation"><li x-text="b"></li></template></ul>
+          <div class="text-xs text-amber-700 dark:text-amber-400" x-show="ideaRes.note" x-text="ideaRes.note"></div>
+          <div class="flex flex-wrap gap-2 pt-1">
+            <a class="btn-primary btn-xs" :href="testUrl()">Test it now (backtest with costs)</a>
+            <a class="btn btn-xs" :href="'#/research/grid?strategy=' + ideaRes.key + '&symbol=' + (QTS.symbolsFrom(symbols)[0] || 'SPY')">Optimise the numbers</a>
+            <a class="btn btn-xs" :href="'#/trading?new=1&strategy=' + ideaRes.key">Forward-test it (paper)</a>
+            <button class="btn btn-xs" @click="showCode = !showCode" x-text="showCode ? 'Hide the code' : 'Show the code (optional)'"></button>
+          </div>
+        </div>
+      </template>
+      <template x-if="ideaRes && !ideaRes.ok">
+        <div class="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm" x-text="ideaRes.message || 'The generated code did not pass validation - try rephrasing the idea.'"></div>
+      </template>
+      <button class="btn-link text-xs" x-show="!ideaRes" @click="showCode = !showCode" x-text="showCode ? 'Hide the code editor' : 'Advanced: write or edit the code yourself'"></button>
+    </div>
+
+    <div x-show="showCode" class="space-y-3">
     <div class="card flex flex-wrap items-end gap-3">
       <div><label class="label">Start from a template</label><select class="input" @change="useTemplate($event.target.value)"><template x-for="t in templates" :key="t.key"><option :value="t.key" x-text="t.title"></option></template></select></div>
       <div><label class="label">Test symbols</label><input class="input w-40" x-model="symbols" title="one symbol for single-asset strategies, several for multi_asset = True"></div>
@@ -24,9 +59,21 @@
         <div class="flex gap-2" x-show="key && result.ok"><a class="btn-primary btn-xs" :href="'#/backtest?strategy=' + key">Backtest it</a><a class="btn btn-xs" :href="'#/research/diagnostics?strategy=' + key">Diagnose it</a><a class="btn btn-xs" :href="'#/trading?new=1&strategy=' + key">Forward-test it</a></div>
       </div>
     </template>
+    </div>
   </div>
   <div class="space-y-3">
-    <div class="card text-sm space-y-2">
+    <div class="card text-sm space-y-2" x-show="!showCode">
+      <div class="card-title">How it works</div>
+      <ol class="list-decimal ml-5 space-y-1.5">
+        <li><b>Describe</b> the idea in one or two sentences - the signal, when to buy, when to sell. Numbers help ("RSI below 30", "50-day average").</li>
+        <li><b>The app writes the strategy</b> and checks it: a test run on real data and a <b>look-ahead check</b> that proves it never uses tomorrow's prices.</li>
+        <li><b>Read the rules it shows you</b> - if they are not what you meant, rephrase and try again.</li>
+        <li><b>Test it now</b>: a backtest with realistic trading costs, compared with buy-and-hold.</li>
+        <li><b>Optimise</b> the numbers out of sample, then <b>forward-test</b> it on paper.</li>
+      </ol>
+      <div class="text-xs muted">You never have to write or read code - it is there under "Show the code" if you are curious.</div>
+    </div>
+    <div class="card text-sm space-y-2" x-show="showCode">
       <div class="card-title">The plugin API</div>
       <pre class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-2 overflow-x-auto">class MyStrategy(Strategy):
     name = "My strategy"

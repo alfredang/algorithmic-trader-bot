@@ -42,11 +42,17 @@ class KeyError_(ValueError):
 def fields_for(integration: str) -> list[dict]:
     """Form description for one integration card: label, kind, masked current value, source."""
     saved = read_keys_file()
+    dotenv = read_keys_file(Path(".env"))
     s = get_settings()
     out = []
     for name, label, kind, options in EDITABLE.get(integration, []):
         current = getattr(s, _ATTR[name], "") or ""
-        source = "saved in the app" if saved.get(name) else ("from .env / environment" if current else "")
+        if saved.get(name):
+            source = "saved in the app"
+        elif os.environ.get(name) or dotenv.get(name):
+            source = "from .env / environment"
+        else:
+            source = "default" if current else ""
         if kind == "select":
             preview = current
         else:

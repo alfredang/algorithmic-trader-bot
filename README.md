@@ -46,6 +46,11 @@ course simulator:
 
 - **Gemini is gone.** The AI layer is now a **multi-agent desk** powered by **OpenAI Codex (Sign in with ChatGPT)**, the
   **Claude Agent SDK** or the **OpenAI Agents SDK**. A deterministic rule-based desk is the fallback.
+- **No coding needed.** **Idea → Strategy** turns a trading idea written in plain English into a validated strategy (the
+  connected AI writes it; with no AI, a built-in interpreter covers the common strategy families), shows the rules it
+  understood, and backtests it with costs in one click.
+- **No terminal for keys.** Paste API keys into the **Integrations** page and press **Save & test**: they are used at once,
+  stored only on your computer (`data/keys.env`) and always shown masked.
 - The v1 code is kept, unchanged, in [`legacy/`](legacy/) for reference. It is the only place Gemini still appears.
 
 ## Features mapped to the course
@@ -181,7 +186,8 @@ On first launch a welcome wizard guides you through four steps:
 
 1. Confirm the **paper-only** rules.
 2. Choose **offline demo** or **Alpaca paper**. Offline is the default. For Alpaca, put `APCA_API_KEY_ID` and
-   `APCA_API_SECRET_KEY` in `.env`, restart, and check the connection with **Integrations > Test**.
+   `APCA_API_SECRET_KEY` on the **Integrations** page and press **Save & test** (no restart; stored in `data/keys.env`).
+   Setting them in `.env` also works.
 3. See which **AI brain** is active.
 4. **Load the demo data**, if you have not run `trader seed` yet.
 
@@ -227,7 +233,7 @@ choose a provider for each run on the AI Agents page.
 | `address already in use` / port 8000 busy | `uv run trader serve --port 8010`, or set `APP_PORT=8010` in `.env` (Docker publishes the frontend on `APP_PORT`). |
 | `unable to open database file` / DB errors | SQLite: check that `DATABASE_URL` points to a writable path (the default `./data/` is created automatically). Docker: wait until `db` is healthy (`docker compose ps`) and look at `docker compose logs backend`. A Postgres URL needs the `postgresql+psycopg://` scheme. |
 | Empty pages / no backtests | Run `uv run trader seed` (Docker: `docker compose exec backend trader seed`) or use **Settings > Load demo data**. |
-| Integrations show "not configured" | Add the key to `.env` and **restart**. Keys are read at start-up and never stored in the database. |
+| Integrations show "not configured" | Paste the key into its card on **Integrations** and press **Save & test** (used at once, stored in `data/keys.env`). Keys in `.env` are read at start-up. Keys are never stored in the database. |
 | AI desk says `rules` / "not logged in" | Run `codex login` (Sign in with ChatGPT) on the machine that runs the app, or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. Install the SDKs with `uv sync --extra ai`. |
 | Orders stay `accepted` / not filled | The US market is closed, so orders queue as GTC limits. Outside 09:30-16:00 ET, only extended-hours **limit** orders are accepted (Singapore class hours fall in the US overnight session). In the simulator use **Process working orders** or the ticket's *Session (sim)* override. Replay bots fill on their own bars. |
 | A running bot does nothing | Check that a worker is running (`--with-worker`, `trader worker`, or the Docker `worker` service), and that neither the global kill switch nor the bot's kill switch is ON. |
@@ -266,7 +272,7 @@ Every variable is optional. See [`.env.example`](.env.example).
 
 ## Integrations
 
-- **Alpaca (paper).** Go to alpaca.markets > Paper Trading > API Keys > Generate, then put both values in `.env`.
+- **Alpaca (paper).** In app.alpaca.markets switch to your Paper account, Home > API Keys > Generate New Keys, then paste both values into the Alpaca card on **Integrations** and press **Save & test**. (Or put them in `.env`.)
   - The app uses the Alpaca Market Data API (IEX feed, adjusted), Alpaca News, the market clock and the Trading API, with
     `TradingClient(..., paper=True)` hard-coded.
   - Bots and the order manager are **session-aware**:
@@ -291,6 +297,10 @@ Every variable is optional. See [`.env.example`](.env.example).
   command and the provider terms.
 
 ## Custom strategy guide
+
+**Most learners never need this section.** Open **Idea → Strategy**, describe the idea in plain English and press **Turn my
+idea into a strategy**: the app writes the code below for you, runs the sandbox and look-ahead checks, saves it, and
+**Test it now** backtests it. The rest of this section is for anyone who wants to read or edit the code.
 
 ```python
 from trader.core import indicators as ta

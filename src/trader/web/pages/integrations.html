@@ -6,7 +6,7 @@
   <div class="grid lg:grid-cols-2 gap-4">
     <template x-for="it in items.filter(i => i.key !== 'tradingview')" :key="it.key">
       <div class="card space-y-2">
-        <div class="flex items-center gap-2"><div class="font-semibold flex-1" x-text="it.name"></div><span class="badge" :class="it.configured ? 'badge-ok' : 'badge-muted'" x-text="it.configured ? 'connected' : 'not configured'"></span></div>
+        <div class="flex items-center gap-2"><div class="font-semibold flex-1" x-text="it.name"></div><span class="badge" :class="badgeClass(it)" x-text="badgeText(it)"></span></div>
         <div class="text-sm muted" x-text="it.help"></div>
         <template x-if="!(it.editable && it.editable.length)"><div class="grid grid-cols-1 gap-1 text-xs"><template x-for="(v,k) in it.fields"><div class="flex gap-2"><span class="muted w-44 shrink-0 mono" x-text="k"></span><span class="mono break-all" x-text="v || '(blank)'"></span></div></template></div></template>
         <template x-if="it.editable && it.editable.length">
@@ -28,7 +28,7 @@
               </div>
             </template>
             <div class="flex items-center gap-2">
-              <button type="submit" class="btn-primary btn-xs" :disabled="busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Save &amp; test</button>
+              <button type="submit" class="btn-primary btn-xs" :disabled="!!busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Save &amp; test</button>
               <button type="button" class="btn-link text-xs text-red-600" x-show="it.editable.some((f) => f.saved_in_app)" @click="clearKeys(it)">Remove saved keys</button>
             </div>
           </form>

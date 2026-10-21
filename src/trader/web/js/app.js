@@ -93,7 +93,7 @@ QTS.NAV = [
   { label: 'Research workflow', items: [
     { route: 'data', label: 'Data', icon: 'db' },
     { route: 'strategies', label: 'Strategies', icon: 'layers' },
-    { route: 'builder', label: 'Strategy Builder', icon: 'code' },
+    { route: 'builder', label: 'Idea → Strategy', icon: 'code' },
     { route: 'backtest', label: 'Backtest', icon: 'play' },
     { route: 'research', label: 'Research', icon: 'flask', children: [
       { route: 'research/hypothesis', label: 'Hypothesis test' }, { route: 'research/grid', label: 'Strategy search' },
@@ -111,7 +111,7 @@ QTS.NAV = [
     { route: 'help', label: 'Help & Glossary', icon: 'help' } ] },
 ];
 QTS.TITLES = { pipeline: 'Pipeline Map', dashboard: 'Dashboard', labs: 'Course Labs', data: 'Data', strategies: 'Strategy Library',
-  builder: 'Strategy Builder (custom Python)', backtest: 'Backtest', research: 'Research', trading: 'Paper Trading',
+  builder: 'Idea → Strategy (no coding)', backtest: 'Backtest', research: 'Research', trading: 'Paper Trading',
   analytics: 'Performance Analytics', agents: 'AI Agents', integrations: 'Integrations', settings: 'Settings', help: 'Help & Glossary' };
 
 QTS.parseHash = function () {

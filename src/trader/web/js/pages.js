@@ -270,6 +270,8 @@
         this.cm = CodeMirror(this.$refs.editor, { value: t[0].code, mode: 'python', lineNumbers: true, indentUnit: 4,
           theme: document.documentElement.classList.contains('dark') ? 'material-darker' : 'default', extraKeys: { Tab: (cm) => cm.replaceSelection('    ') } });
         Q.on('theme', (dark) => this.cm.setOption('theme', dark ? 'material-darker' : 'default'));
+        this.loadExamples();
+        this.$watch('showCode', (v) => { if (v) setTimeout(() => this.cm.refresh(), 0); });
         if (q.clone) await this.clone(q.clone);
         else if (q.key) this.edit(this.customs.find((s) => s.key === q.key));
         else if (q.template) this.useTemplate(q.template);
@@ -292,6 +294,23 @@
         } finally { this.busy = false; }
       },
       async remove(s) { if (!confirm('Delete ' + s.name + '?')) return; await Q.del('/api/strategies/' + s.key); this.customs = this.customs.filter((x) => x.key !== s.key); if (this.key === s.key) this.key = null; },
+      // ---- Idea -> Strategy (no coding): describe the idea, the app writes and checks the code
+      idea: q.idea || '', ideaRes: null, ideaBusy: false, examples: [], showCode: !!(q.key || q.clone || q.template),
+      async loadExamples() { this.examples = await Q.get('/api/strategies/idea/examples'); },
+      async fromIdea() {
+        this.ideaBusy = true; this.ideaRes = null;
+        try {
+          const sym = (Q.symbolsFrom(this.symbols)[0] || 'SPY');
+          const r = await Q.post('/api/strategies/from-idea', { idea: this.idea, symbol: sym, save: true });
+          this.ideaRes = r;
+          if (r.ok) {
+            this.cm.setValue(r.code); this.key = r.key; this.parent = null; this.result = r.validation;
+            this.customs = (await Q.get('/api/strategies')).filter((x) => x.custom);
+            Q.toast('Strategy ready: ' + r.name, 'ok');
+          } else Q.toast(r.message || 'Could not build a strategy from that idea', 'error');
+        } finally { this.ideaBusy = false; }
+      },
+      testUrl() { return '#/backtest?strategy=' + this.key + '&symbols=' + (Q.symbolsFrom(this.symbols)[0] || 'SPY') + '&costs=alpaca_retail&run=1'; },
     };
   };
 
@@ -309,6 +328,7 @@
         this.strategies = s; this.presets = p; this.history = h;
         this.pick(this.key, true);
         if (q.id) this.load(parseInt(q.id, 10));
+        else if (q.run === '1') this.$nextTick(() => this.run());      // 'Test it now' from Idea -> Strategy
         Q.on('route', (r) => { if (r.params.id) this.load(parseInt(r.params.id, 10)); });
         Q.on('theme', () => this.draw());
       },

@@ -1,7 +1,7 @@
 """Strategy library, custom-strategy builder and Pine Script export."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -52,6 +52,35 @@ def _data_for(db, body: StrategyCode, multi: bool):
 
 def _is_multi(code: str) -> bool:
     return "multi_asset = True" in code.replace(" ", " ")
+
+
+@router.get("/idea/examples")
+def idea_examples():
+    from trader.services import idea as IDEA
+    return IDEA.EXAMPLES
+
+
+@router.post("/from-idea")
+def from_idea(body: dict = Body(...), db: Session = Depends(get_db)):
+    """Plain-English trading idea -> validated strategy code (AI if connected, else the built-in interpreter)."""
+    from trader.services import idea as IDEA
+    symbol = (body.get("symbol") or "SPY").upper()
+    d = data.load_bars(db, symbol)
+    out = IDEA.generate(body.get("idea", ""), lambda code: registry.validate_code(code, d, {}),
+                        use_ai=bool(body.get("use_ai", True)))
+    if out.get("ok"):
+        out.setdefault("name", (out["validation"].get("meta") or {}).get("name") or "My idea")
+    if out.get("ok") and body.get("save", True):
+        v = out["validation"]
+        rec = registry.save_custom(db, out["code"], v["meta"], None,
+                                   {"summary": body.get("idea", "")[:300], "category": "Directional / alpha",
+                                    "holding_period": "Swing"}, None, v)
+        audit("strategy.saved", "strategy", rec.key, {"name": rec.name, "from": "idea"}, actor="user", db=db)
+        stage("strategy", "ok", f"Idea turned into strategy '{rec.name}' ({out['source']})", {"key": rec.key}, db=db)
+        db.commit()
+        out["key"] = rec.key
+    out["symbol"] = symbol
+    return out
 
 
 @router.post("/validate")

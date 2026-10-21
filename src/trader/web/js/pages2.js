@@ -237,6 +237,17 @@
       async saveWh() { await Q.put('/api/webhooks/config', { ...this.wh, allowed_symbols: Q.symbolsFrom(Array.isArray(this.wh.allowed_symbols) ? this.wh.allowed_symbols.join(',') : this.wh.allowed_symbols), max_order_qty: parseFloat(this.wh.max_order_qty) }); Q.toast('Webhook settings saved', 'ok'); await this.load(); },
       byKey(k) { return this.items.find((i) => i.key === k); },
       forms: {}, show: {},
+      badgeText(it) {
+        const r = this.results[it.key];
+        if (r) return r.ok ? 'connected' : 'key not working';
+        if (!it.configured) return 'not configured';
+        return (it.editable && it.editable.length) ? 'key saved - press Test' : 'connected';
+      },
+      badgeClass(it) {
+        const r = this.results[it.key];
+        if (r) return r.ok ? 'badge-ok' : 'badge-err';
+        return it.configured ? ((it.editable && it.editable.length) ? 'badge-warn' : 'badge-ok') : 'badge-muted';
+      },
       form(k) { return (this.forms[k] = this.forms[k] || {}); },
       async saveKeys(it) {
         const values = {};

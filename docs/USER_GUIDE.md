@@ -151,17 +151,26 @@ Click a card to see:
 
 ---
 
-## 4. Writing a custom Python strategy
+## 4. Turning your idea into a strategy (no coding)
 
-![Strategy Builder](screenshots/builder.png)
+![Idea → Strategy](screenshots/builder.png)
 
-1. Open **Strategy Builder**. Choose a template (blank, EMA + RSI filter, Bollinger reversion, long/short, multi-asset
-   rotation, ML classifier), or start from **Clone to Strategy Builder** on a built-in.
-2. Write `generate_signals(self, data)`. It must return a Series of target positions: 1 long, 0 flat, −1 short. Multi-asset
-   strategies set `multi_asset = True` and return a DataFrame of weights. Declare `params` to get an auto-generated form.
-3. Press **Validate & test-run**. The code is statically checked, run in a restricted subprocess on the demo data, and
-   tested for **look-ahead**: truncation and future-shock checks must not change past signal values.
-4. Press **Save**. The strategy now appears in the library, the Backtest page, Research, bots and A/B tests.
+1. Open **Idea → Strategy** (sidebar, or **Test a trading idea** on the Dashboard).
+2. **Describe the idea** in a sentence or two: the signal, when to buy, when to sell. Numbers help, e.g. *"Buy when
+   RSI(14) drops below 30 and sell when it rises above 70"*. Or click one of the example ideas.
+3. Choose the symbol to test on (default SPY) and press **Turn my idea into a strategy**.
+   - With an AI connected (OpenAI Codex sign-in, or a Claude / OpenAI API key on **Integrations**) the AI writes the strategy.
+   - With no AI, the built-in interpreter handles the common families: moving-average crossover, RSI, Bollinger Bands,
+     breakout, buy-the-dip, MACD and momentum.
+4. The app **checks the code for you**: a test run on real data and a **look-ahead check** that proves it never uses
+   future prices. It then saves the strategy and shows **how it understood your idea** in plain English. If those rules are
+   not what you meant, rephrase and try again.
+5. Press **Test it now**: a backtest with realistic Alpaca trading costs, compared with buy-and-hold. From there you can
+   **Optimise the numbers** (Research > Grid) or **Forward-test it** on paper.
+
+You never have to read or write code. **Show the code (optional)** reveals it, and **Advanced: write or edit the code
+yourself** opens the editor with templates and the plugin API (`generate_signals(self, data)` returning 1 long, 0 flat,
+−1 short) for anyone who wants to go further.
 
 > The sandbox (import allow-list, no file or dunder access, CPU, memory and time limits, no API keys) is for **local,
 > trusted use**.
@@ -392,7 +401,11 @@ with ChatGPT), Claude (Agent SDK, API key), OpenAI Agents SDK, and the database.
 - the **provider terms** (quoted, with links)
 - a **Test connection** button
 
-Keys come only from `.env`. Edit the file and restart the app to change them.
+**To connect a service, paste its key into the card and press Save & test** - no terminal, no text editor, no restart.
+The key is stored only on this computer in `data/keys.env` (private to your user account, git-ignored, never in the
+database) and every page shows it masked. **Remove saved keys** clears it. Everything works without keys: the offline demo
+data and the built-in paper broker run every lab. Advanced users can still set the same variables in `.env`; a key saved in
+the app takes precedence.
 
 > **Claude.ai subscription login is not offered.** Anthropic's terms do not allow third-party apps to offer it. The Claude
 > provider uses an API key or cloud credentials. The OpenAI Codex provider reuses **your own** `codex login` on your

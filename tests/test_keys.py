@@ -63,3 +63,27 @@ def test_saved_key_beats_env_var(client, monkeypatch):
     assert get_settings().newsapi_key == "fromapp1111111111"
     client.put("/api/integrations/newsapi/keys", json={"clear": ["NEWSAPI_KEY"]})
     assert get_settings().newsapi_key == "fromenv0000000000"
+
+
+def test_idea_to_strategy_without_ai_then_backtest(client):
+    """No AI connected (AI_PROVIDER=rules): the built-in interpreter writes valid code that backtests."""
+    r = client.post("/api/strategies/from-idea",
+                    json={"idea": "Buy when RSI(14) drops below 30 and sell when it rises above 70", "symbol": "SPY"}).json()
+    assert r["ok"] and r["source"] == "built-in interpreter" and r["key"]
+    assert r["validation"]["ok"] and r["validation"]["lookahead"]["status"] == "PASS"
+    assert any("30" in b for b in r["explanation"])
+    bt = client.post("/api/backtests", json={"strategy_key": r["key"], "symbols": ["SPY"], "params": {}})
+    assert bt.status_code == 200, bt.text[:300]
+
+
+def test_every_example_idea_builds_a_valid_strategy(client):
+    for idea in client.get("/api/strategies/idea/examples").json():
+        r = client.post("/api/strategies/from-idea", json={"idea": idea, "symbol": "SPY", "save": False}).json()
+        assert r["ok"], (idea, r.get("message"), r.get("validation"))
+        assert r["validation"]["lookahead"]["status"] == "PASS", idea
+
+
+def test_unrecognised_idea_without_ai_explains_what_to_do(client):
+    r = client.post("/api/strategies/from-idea", json={"idea": "stocks that fell a lot tend to recover eventually",
+                                                         "save": False}).json()
+    assert r["ok"] is False and "Integrations" in r["message"]
