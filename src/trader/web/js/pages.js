@@ -177,7 +177,7 @@
     const q = Q.query();
     return {
       tab: q.tab || 'chart', instruments: [], sources: [], symbol: (q.symbol || 'SPY').toUpperCase(), timeframe: q.timeframe || '1Day',
-      start: q.start || '2024-01-01', overlays: (q.overlays || 'sma:20,ema:50').split(','), osc: q.osc || 'rsi', quality: null,
+      start: q.start || '2024-01-01', end: q.end || '', overlays: (q.overlays || 'sma:20,ema:50').split(','), osc: q.osc || 'rsi', quality: null,
       fetchForm: { symbol: q.symbol || 'SPY', source: q.source || 'auto', timeframe: '1Day', start: '2018-01-01' }, fetching: false,
       news: [], sentiment: [], newsSource: 'auto', newsBusy: false, ref: null, refSymbol: q.ref || 'AAPL', refDate: '2025-12-31',
       tv: { open: '', high: '', low: '', close: '' }, catalog: [], QTS: Q, scoreText: '', scoreVal: null,
@@ -193,7 +193,7 @@
       async drawChart() {
         const ind = [...this.overlays, this.osc].filter(Boolean).join(',');
         let d;
-        try { d = await Q.get(`/api/data/bars?symbol=${this.symbol}&timeframe=${this.timeframe}&start=${this.start}&indicators=${ind}`); } catch (e) { return; }
+        try { d = await Q.get(`/api/data/bars?symbol=${this.symbol}&timeframe=${this.timeframe}&start=${this.start}${this.end ? `&end=${this.end}` : ''}&indicators=${ind}`); } catch (e) { return; }
         const overlays = [];
         Object.entries(d.indicators).forEach(([k, v]) => { if (v.pane === 'price') Object.entries(v.series).forEach(([col, data]) => overlays.push({ name: `${k} ${col}`, data })); });
         const intraday = this.timeframe.endsWith('Hour');
@@ -241,15 +241,20 @@
   /* ------------------------------------------------------------------ strategy library */
   window.strategiesPage = function () {
     return {
-      all: [], tax: {}, f: { q: '', category: '', family: '', holding: '', model: '' }, sel: null, pine: null, QTS: Q,
+      all: [], tax: {}, labs: {}, f: { q: '', category: '', lab: Q.query().lab || '', family: '', holding: '', model: '' }, sel: null, pine: null, QTS: Q,
       async init() {
         [this.all, this.tax] = await Promise.all([Q.get('/api/strategies'), Q.get('/api/strategies/taxonomy')]);
         const k = Q.query().key; if (k) this.sel = this.all.find((s) => s.key === k) || null;
+        try { (await Q.get('/api/labs')).labs.forEach((l) => { this.labs[l.id] = l.title; }); } catch (e) { /* titles are optional */ }
       },
-      opts(field) { return [...new Set(this.all.map((s) => (field === 'family' ? s.tags.family : field === 'category' ? s.tags.category : field === 'holding' ? s.tags.holding_period : s.tags.model_type)))].sort(); },
+      // categories keep the API's lab order (trend -> momentum -> ... -> market making); the other filters sort A-Z
+      opts(field) { const v = [...new Set(this.all.map((s) => (field === 'family' ? s.tags.family : field === 'category' ? s.tags.category : field === 'holding' ? s.tags.holding_period : s.tags.model_type)))]; return field === 'category' ? v : v.sort(); },
+      labName(id) { return 'Lab ' + String(id).padStart(2, '0'); },
+      labOpts() { return [...new Set(this.all.flatMap((s) => s.labs || []))].sort((a, b) => a - b).map((id) => ({ id: String(id), label: this.labName(id) + (this.labs[id] ? ' · ' + this.labs[id] : '') })); },
       get list() {
         const f = this.f; const q = f.q.toLowerCase();
         return this.all.filter((s) => (!q || (s.name + ' ' + s.summary + ' ' + s.key).toLowerCase().includes(q)) && (!f.category || s.tags.category === f.category) &&
+          (!f.lab || (s.labs || []).includes(Number(f.lab))) &&
           (!f.family || s.tags.family === f.family) && (!f.holding || s.tags.holding_period === f.holding) && (!f.model || s.tags.model_type === f.model));
       },
       async showPine(s) { this.pine = { name: s.name, code: await Q.get(`/api/strategies/${s.key}/pine`) }; },
@@ -263,7 +268,7 @@
     const q = Q.query();
     return {
       cm: null, templates: [], customs: [], key: q.key || null, parent: null, symbols: q.symbols || 'SPY', result: null, busy: false,
-      info: { summary: '', category: 'Directional / alpha', holding_period: 'Swing' }, QTS: Q,
+      info: { summary: '', category: 'Custom', holding_period: 'Swing' }, QTS: Q,
       async init() {
         const [t, all] = await Promise.all([Q.get('/api/strategies/templates'), Q.get('/api/strategies')]);
         this.templates = t; this.customs = all.filter((s) => s.custom);

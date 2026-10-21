@@ -1,7 +1,8 @@
 <div x-data="strategiesPage()" class="space-y-4">
   <div class="card flex flex-wrap gap-3 items-end">
     <div class="flex-1 min-w-[12rem]"><label class="label">Search</label><input class="input" x-model="f.q" placeholder="crossover, pairs, XGBoost…"></div>
-    <div><label class="label">Category (by purpose)</label><select class="input" x-model="f.category"><option value="">all</option><template x-for="o in opts('category')"><option x-text="o"></option></template></select></div>
+    <div><label class="label">Category</label><select class="input" x-model="f.category"><option value="">all</option><template x-for="o in opts('category')"><option x-text="o"></option></template></select></div>
+    <div><label class="label">Lab</label><select class="input max-w-[16rem]" x-model="f.lab"><option value="">all</option><template x-for="l in labOpts()" :key="l.id"><option :value="l.id" x-text="l.label"></option></template></select></div>
     <div><label class="label">Family</label><select class="input" x-model="f.family"><option value="">all</option><template x-for="o in opts('family')"><option x-text="o"></option></template></select></div>
     <div><label class="label">Holding period</label><select class="input" x-model="f.holding"><option value="">all</option><template x-for="o in opts('holding')"><option x-text="o"></option></template></select></div>
     <div><label class="label">Model type</label><select class="input" x-model="f.model"><option value="">all</option><template x-for="o in opts('model')"><option x-text="o"></option></template></select></div>
@@ -16,6 +17,7 @@
         <p class="text-sm muted mt-1" x-text="s.summary"></p>
         <div class="flex flex-wrap gap-1 mt-2">
           <span class="badge badge-muted" x-text="s.tags.category"></span><span class="badge badge-muted" x-text="s.tags.holding_period"></span><span class="badge badge-muted" x-text="s.tags.model_type"></span>
+          <template x-for="l in s.labs || []" :key="l"><span class="badge badge-info" x-text="labName(l)"></span></template>
         </div>
       </div>
     </template>
@@ -25,7 +27,7 @@
   <div x-show="sel" x-cloak class="fixed inset-y-0 right-0 z-40 w-full sm:w-[34rem] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-5 overflow-y-auto">
     <template x-if="sel"><div class="space-y-3">
       <div class="flex gap-2"><h2 class="text-lg font-semibold flex-1" x-text="sel.name"></h2><button class="btn btn-xs" @click="sel=null">Close</button></div>
-      <div class="flex flex-wrap gap-1"><span class="badge badge-info" x-text="sel.tags.category"></span><span class="badge badge-muted" x-text="sel.tags.family"></span><span class="badge badge-muted" x-text="sel.tags.holding_period"></span><span class="badge badge-muted" x-text="sel.tags.model_type"></span><span class="badge badge-muted" x-show="sel.course_ref" x-text="sel.course_ref"></span></div>
+      <div class="flex flex-wrap gap-1"><span class="badge badge-info" x-text="sel.tags.category"></span><span class="badge badge-muted" x-text="sel.tags.family"></span><span class="badge badge-muted" x-text="sel.tags.holding_period"></span><span class="badge badge-muted" x-text="sel.tags.model_type"></span><span class="badge badge-muted" x-show="sel.course_ref" x-text="sel.course_ref"></span><template x-for="l in sel.labs || []" :key="l"><span class="badge badge-info" x-text="labName(l)"></span></template></div>
       <p class="text-sm" x-text="sel.summary"></p>
       <div class="grid gap-2">
         <template x-for="b in [['How it works', sel.how], ['Rule', sel.rule], ['Works best when', sel.works_best], ['Watch out for', sel.watch_out]]">

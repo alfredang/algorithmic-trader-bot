@@ -9,7 +9,8 @@
     <div class="card flex flex-wrap items-end gap-3">
       <div><label class="label">Symbol</label><select class="input w-32" x-model="symbol" @change="drawChart()"><template x-for="i in instruments" :key="i.symbol"><option :value="i.symbol" x-text="i.symbol"></option></template></select></div>
       <div><label class="label">Timeframe</label><select class="input" x-model="timeframe" @change="drawChart()"><option>1Day</option><option>1Week</option><option>1Month</option><option>1Hour</option></select></div>
-      <div><label class="label">From</label><input class="input" type="date" x-model="start" @change="drawChart()"></div>
+      <div><label class="label">From</label><input class="input" type="date" x-model="start" :max="end || null" @change="drawChart()"></div>
+      <div><label class="label">To <span class="muted">(blank = latest)</span></label><input class="input" type="date" x-model="end" :min="start || null" @change="drawChart()"></div>
       <div class="flex-1 min-w-[18rem]"><label class="label">Price overlays</label>
         <div class="flex flex-wrap gap-1">
           <template x-for="o in ['sma:20','sma:50','sma:200','ema:20','ema:50','bollinger','donchian:20','vwap:20']"><button class="btn-xs" :class="overlays.includes(o) ? 'bg-brand-600 text-white' : 'btn'" @click="toggleOverlay(o)" x-text="o"></button></template>

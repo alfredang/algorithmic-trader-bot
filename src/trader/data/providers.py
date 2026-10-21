@@ -17,7 +17,7 @@ from trader.config import DEMO_DIR, get_settings
 COLUMNS = ["open", "high", "low", "close", "volume"]
 RESAMPLE = {"1Week": "W-FRI", "1Month": "ME"}
 TIMEFRAMES = ["1Day", "1Week", "1Month", "1Hour"]
-DEMO_SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "JPM", "XLF", "KO", "PEP", "BAC", "GLD", "TLT"]
+DEMO_SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA", "JPM", "XLF", "KO", "PEP", "BAC", "GLD", "TLT"]
 ET = "America/New_York"
 
 

@@ -42,7 +42,7 @@ SIGNAL_BASES = ["ema_cross", "sma_cross", "trend_filter", "ts_momentum", "donchi
 class BuyAndHold(Strategy):
     name = "Buy and hold (benchmark)"
     params = {}
-    info = StrategyInfo("buy_hold", name, family="Benchmark", holding_period="Position",
+    info = StrategyInfo("buy_hold", name, labs=[9], category="Benchmark", family="Benchmark", holding_period="Position",
                         summary="Buy at the first next-bar open and hold - the benchmark every strategy must beat.",
                         how="Invest 100% of equity on the first bar and never trade again.",
                         rule="Always long.", works_best="Long rising markets; lowest cost and turnover.",
@@ -58,7 +58,7 @@ class SMACross(Strategy):
     name = "SMA crossover"
     params = {"fast": {"default": 50, "min": 2, "max": 300, "help": "Fast simple moving average length (bars)"},
               "slow": {"default": 200, "min": 3, "max": 400, "help": "Slow simple moving average length (bars)"}}
-    info = StrategyInfo("sma_cross", name, summary="Golden cross / death cross on two simple moving averages.",
+    info = StrategyInfo("sma_cross", name, category="Trend following", summary="Golden cross / death cross on two simple moving averages.",
                         pine=True, **MA)
 
     def generate_signals(self, data):
@@ -70,7 +70,7 @@ class EMACross(Strategy):
     name = "EMA crossover"
     params = {"fast": {"default": 10, "min": 2, "max": 200, "help": "Fast EMA length"},
               "slow": {"default": 30, "min": 3, "max": 400, "help": "Slow EMA length"}}
-    info = StrategyInfo("ema_cross", name, summary="Long while the fast EMA is above the slow EMA (the course bot's default).",
+    info = StrategyInfo("ema_cross", name, category="Trend following", summary="Long while the fast EMA is above the slow EMA (the course bot's default).",
                         pine=True, **MA)
 
     def generate_signals(self, data):
@@ -81,7 +81,7 @@ class EMACross(Strategy):
 class TrendFilter(Strategy):
     name = "Trend filter (close > SMA)"
     params = {"window": {"default": 200, "min": 10, "max": 400, "help": "SMA length"}}
-    info = StrategyInfo("trend_filter", name, summary="Long while the close is above its long moving average.",
+    info = StrategyInfo("trend_filter", name, category="Trend following", summary="Long while the close is above its long moving average.",
                         pine=True, **MA)
 
     def generate_signals(self, data):
@@ -93,7 +93,7 @@ class MACDCross(Strategy):
     name = "MACD signal-line cross"
     params = {"fast": {"default": 12, "min": 2, "max": 100}, "slow": {"default": 26, "min": 3, "max": 200},
               "signal": {"default": 9, "min": 2, "max": 50, "help": "Signal-line EMA length"}}
-    info = StrategyInfo("macd_cross", name, family="Momentum and breakout", holding_period="Swing",
+    info = StrategyInfo("macd_cross", name, labs=[5], category="Momentum", family="Momentum and breakout", holding_period="Swing",
                         summary="Long while the MACD line is above its signal line.", pine=True, **OSC)
 
     def generate_signals(self, data):
@@ -107,7 +107,7 @@ class RSIThreshold(Strategy):
     params = {"window": {"default": 14, "min": 2, "max": 50}, "oversold": {"default": 30, "min": 1, "max": 50},
               "overbought": {"default": 70, "min": 50, "max": 99},
               "allow_short": {"default": False, "help": "Short when overbought instead of going flat"}}
-    info = StrategyInfo("rsi_threshold", name, family="Mean reversion", holding_period="Swing",
+    info = StrategyInfo("rsi_threshold", name, labs=[5], category="Mean reversion", family="Mean reversion", holding_period="Swing",
                         summary="Buy when RSI(14) < 30 and sell when RSI > 70 (optionally short above 70).",
                         pine=True, **OSC)
 
@@ -124,7 +124,7 @@ class RSI2Reversion(Strategy):
     params = {"n": {"default": 2, "min": 2, "max": 14, "help": "RSI length"},
               "entry": {"default": 10, "min": 1, "max": 50, "help": "Buy when RSI(n) falls below this"},
               "exit": {"default": 70, "min": 30, "max": 99, "help": "Sell when RSI(n) rises above this"}}
-    info = StrategyInfo("rsi2_reversion", name, family="Mean reversion", holding_period="Swing",
+    info = StrategyInfo("rsi2_reversion", name, category="Mean reversion", family="Mean reversion", holding_period="Swing",
                         summary="Larry Connors-style short-term reversion: buy deep RSI(2) dips, sell on the bounce.",
                         pine=True, **OSC)
 
@@ -136,7 +136,7 @@ class RSI2Reversion(Strategy):
 class BollingerReversion(Strategy):
     name = "Bollinger Band mean reversion"
     params = {"window": {"default": 20, "min": 5, "max": 100}, "k": {"default": 2.0, "min": 0.5, "max": 4.0, "step": 0.1}}
-    info = StrategyInfo("bollinger_reversion", name, family="Mean reversion", holding_period="Swing",
+    info = StrategyInfo("bollinger_reversion", name, labs=[5], category="Mean reversion", family="Mean reversion", holding_period="Swing",
                         summary="Buy a close below the lower band; exit when the price returns to the middle band.",
                         pine=True, default_symbols=["KO"], **BB)
 
@@ -148,7 +148,7 @@ class BollingerReversion(Strategy):
 class BollingerBreakout(Strategy):
     name = "Bollinger Band breakout"
     params = {"window": {"default": 20, "min": 5, "max": 100}, "k": {"default": 2.0, "min": 0.5, "max": 4.0, "step": 0.1}}
-    info = StrategyInfo("bollinger_breakout", name, family="Momentum and breakout", holding_period="Swing",
+    info = StrategyInfo("bollinger_breakout", name, labs=[5], category="Breakout / volatility", family="Momentum and breakout", holding_period="Swing",
                         summary="Buy a close above the upper band; sell a close below the middle band.", pine=True, **BB)
 
     def generate_signals(self, data):
@@ -160,7 +160,7 @@ class DipBuy(Strategy):
     name = "Dip buy after a losing streak"
     params = {"n_down": {"default": 3, "min": 1, "max": 10, "help": "Consecutive down closes"},
               "hold": {"default": 3, "min": 1, "max": 20, "help": "Bars to hold"}}
-    info = StrategyInfo("dip_buy", name, family="Mean reversion", holding_period="Swing",
+    info = StrategyInfo("dip_buy", name, labs=[4], category="Mean reversion", family="Mean reversion", holding_period="Swing",
                         summary="The Lab 04 hypothesis as a strategy: buy after n down closes, hold for a few bars.",
                         how="Counts consecutive down closes; after the n-th it buys and holds for a fixed number of bars.",
                         rule="Streak >= n_down at the close: long for `hold` bars from the next open.",
@@ -178,7 +178,7 @@ class DonchianBreakout(Strategy):
     name = "Donchian channel breakout"
     params = {"entry": {"default": 20, "min": 5, "max": 200, "help": "Breakout lookback (bars)"},
               "exit": {"default": 10, "min": 2, "max": 200, "help": "Exit lookback (bars)"}}
-    info = StrategyInfo("donchian_breakout", name, family="Momentum and breakout", holding_period="Position",
+    info = StrategyInfo("donchian_breakout", name, category="Breakout / volatility", family="Momentum and breakout", holding_period="Position",
                         summary="Turtle-style breakout of the previous n-bar high; exit below the m-bar low.",
                         pine=True, **DC)
 
@@ -193,7 +193,7 @@ class TSMomentum(Strategy):
     params = {"lookback": {"default": 126, "min": 5, "max": 504, "help": "Return lookback (bars)"},
               "threshold": {"default": 0.0, "min": -0.5, "max": 0.5, "step": 0.01},
               "allow_short": {"default": False, "help": "Short when past return is below -threshold"}}
-    info = StrategyInfo("ts_momentum", name, family="Momentum and breakout", holding_period="Position",
+    info = StrategyInfo("ts_momentum", name, labs=[7], category="Momentum", family="Momentum and breakout", holding_period="Position",
                         summary="Long while the asset's own past return is positive (absolute momentum).",
                         how="Measures each asset's own trailing return over the lookback.",
                         rule="Past return > threshold: long; otherwise flat (or short if enabled).",
@@ -217,7 +217,7 @@ class XSMomentum(Strategy):
               "top_k": {"default": 3, "min": 1, "max": 10, "help": "Number of winners to hold"},
               "rebalance": {"default": 21, "min": 1, "max": 63, "help": "Bars between rebalances"},
               "long_short": {"default": False, "help": "Also short the bottom-ranked assets"}}
-    info = StrategyInfo("xs_momentum", name, kind="portfolio", category="Factor and portfolio",
+    info = StrategyInfo("xs_momentum", name, kind="portfolio", category="Momentum",
                         family="Momentum and breakout", holding_period="Position",
                         summary="Rank a universe by 12-1 month return each month, hold the top k equally weighted.",
                         default_symbols=["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "JPM", "XLF", "GLD", "TLT"], **XS)
@@ -248,7 +248,7 @@ class PairsCointegration(Strategy):
               "window": {"default": 60, "min": 10, "max": 252, "help": "Rolling window for the spread z-score"},
               "entry": {"default": 2.0, "min": 0.5, "max": 4.0, "step": 0.1, "help": "Enter when |z| exceeds"},
               "exit": {"default": 0.5, "min": 0.0, "max": 2.0, "step": 0.1, "help": "Exit when |z| falls below"}}
-    info = StrategyInfo("pairs_cointegration", name, kind="portfolio", category="Statistical arbitrage and pairs",
+    info = StrategyInfo("pairs_cointegration", name, kind="portfolio", category="Statistical arbitrage (pairs)",
                         family="Statistical / pairs arbitrage", holding_period="Swing", model_type="Statistical",
                         summary="Hedged, market-neutral spread trade: hedge ratio and ADF test on the formation period only.",
                         default_symbols=["KO", "PEP"], **PAIRS)
@@ -277,7 +277,7 @@ class RegimeFiltered(Strategy):
               "clusters": {"default": 3, "min": 2, "max": 5, "help": "Number of K-means regimes"},
               "min_train": {"default": 504, "min": 252, "max": 1500, "help": "Bars before the first regime fit"},
               "refit_every": {"default": 63, "min": 21, "max": 252, "help": "Bars between walk-forward refits"}}
-    info = StrategyInfo("regime_filtered", name, model_type="Machine learning", family="Trend following",
+    info = StrategyInfo("regime_filtered", name, category="Machine learning", model_type="Machine learning", family="Trend following",
                         summary="Walk-forward K-means regimes on volatility/trend features; the base signal is forced "
                                 "flat in the high-volatility (stress) regime.", **KM)
 
@@ -307,7 +307,7 @@ class _MLClassifier(Strategy):
 class MLLogistic(_MLClassifier):
     name = "ML: logistic regression (walk-forward)"
     model = "logistic"
-    info = StrategyInfo("ml_logistic", name, model_type="Machine learning", family="Machine learning",
+    info = StrategyInfo("ml_logistic", name, category="Machine learning", model_type="Machine learning", family="Machine learning",
                         holding_period="Swing", summary="P(up tomorrow) from 14 leak-free features; long above threshold.",
                         **LR)
 
@@ -315,7 +315,7 @@ class MLLogistic(_MLClassifier):
 class MLRandomForest(_MLClassifier):
     name = "ML: random forest (walk-forward)"
     model = "random_forest"
-    info = StrategyInfo("ml_random_forest", name, model_type="Machine learning", family="Machine learning",
+    info = StrategyInfo("ml_random_forest", name, labs=[11], category="Machine learning", model_type="Machine learning", family="Machine learning",
                         holding_period="Swing", summary="Averaged decision trees on leak-free features, walk-forward.",
                         **RF)
 
@@ -323,7 +323,7 @@ class MLRandomForest(_MLClassifier):
 class MLXGBoost(_MLClassifier):
     name = "ML: XGBoost (walk-forward)"
     model = "xgboost"
-    info = StrategyInfo("ml_xgboost", name, model_type="Machine learning", family="Machine learning",
+    info = StrategyInfo("ml_xgboost", name, category="Machine learning", model_type="Machine learning", family="Machine learning",
                         holding_period="Swing", summary="Gradient-boosted trees on leak-free features, walk-forward.",
                         **XG)
 
@@ -335,7 +335,8 @@ class SentimentStrategy(Strategy):
               "long_above": {"default": 0.05, "min": -1.0, "max": 1.0, "step": 0.01, "help": "Go long above this score"},
               "exit_below": {"default": -0.05, "min": -1.0, "max": 1.0, "step": 0.01, "help": "Exit below this score"},
               "trend_filter": {"default": True, "help": "Only long while close > SMA(200)"}}
-    info = StrategyInfo("sentiment", name, family="Sentiment / NLP", holding_period="Swing", model_type="LLM and agentic",
+    info = StrategyInfo("sentiment", name, labs=[3], category="Sentiment and AI agents", family="Sentiment / NLP",
+                        holding_period="Swing", model_type="LLM and agentic",
                         summary="Rolling average of daily news sentiment (VADER lexicon or LLM) as a signal / filter.",
                         how="Scores each headline from -1 to +1 (VADER lexicon offline, optionally an LLM) and averages per day.",
                         rule="Rolling sentiment above the threshold: long; below the exit level: flat. Optional trend filter.",
@@ -361,7 +362,7 @@ class AgenticDesk(Strategy):
     params = {"buy_above": {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Debate balance to buy"},
               "sell_below": {"default": -0.25, "min": -1.0, "max": 0.0, "step": 0.05, "help": "Debate balance to sell"},
               "news_weight": {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Weight of the news analyst"}}
-    info = StrategyInfo("agentic_desk", name, kind="agentic", model_type="LLM and agentic", family="Agentic AI",
+    info = StrategyInfo("agentic_desk", name, labs=[20], category="Sentiment and AI agents", kind="agentic", model_type="LLM and agentic", family="Agentic AI",
                         holding_period="Swing",
                         summary="The analyst desk (technical + sentiment analysts, bull/bear debate, trader, risk manager) "
                                 "replayed bar by bar with its deterministic rule brain so it can be backtested.",

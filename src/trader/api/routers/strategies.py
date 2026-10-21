@@ -73,7 +73,7 @@ def from_idea(body: dict = Body(...), db: Session = Depends(get_db)):
     if out.get("ok") and body.get("save", True):
         v = out["validation"]
         rec = registry.save_custom(db, out["code"], v["meta"], None,
-                                   {"summary": body.get("idea", "")[:300], "category": "Directional / alpha",
+                                   {"summary": body.get("idea", "")[:300], "category": "Custom",
                                     "holding_period": "Swing"}, None, v)
         audit("strategy.saved", "strategy", rec.key, {"name": rec.name, "from": "idea"}, actor="user", db=db)
         stage("strategy", "ok", f"Idea turned into strategy '{rec.name}' ({out['source']})", {"key": rec.key}, db=db)

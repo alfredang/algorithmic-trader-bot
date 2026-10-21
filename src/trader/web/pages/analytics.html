@@ -1,9 +1,41 @@
 <div x-data="analyticsPage()" class="space-y-4">
-  <div class="card flex flex-wrap items-end gap-3">
-    <div class="min-w-[18rem] flex-1"><label class="label">Backtest</label><select class="input" x-model.number="selId" @change="load()"><template x-for="b in list" :key="b.id"><option :value="b.id" x-text="'#' + b.id + ' ' + b.name"></option></template></select></div>
-    <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/tearsheet.pdf'">PDF tearsheet</a>
-    <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/export.csv'">CSV</a>
-    <div class="min-w-[14rem]"><label class="label">Bot (backtest vs forward)</label><select class="input" x-model.number="botId" @change="loadBot()"><option :value="null">–</option><template x-for="b in bots" :key="b.id"><option :value="b.id" x-text="b.name"></option></template></select></div>
+  <div class="card space-y-3">
+    <div class="card-title flex-wrap gap-2">Run history <span class="card-sub" x-text="list.length + ' runs · click a row to open it · tick boxes are for Compare and Delete'"></span>
+      <span class="ml-auto inline-flex flex-wrap gap-2">
+        <button class="btn-primary btn-xs" @click="compare()" :disabled="ticked.length < 2 || ticked.length > 5" title="Tick 2-5 runs" x-text="'Compare (' + ticked.length + ')'"></button>
+        <button class="btn btn-xs" @click="removeTicked()" x-show="tickedMine.length" x-text="'Delete ticked (' + tickedMine.length + ')'"></button>
+        <button class="btn btn-xs" @click="clearMine()" :disabled="!mine.length" title="Deletes every run except the course samples">Clear my runs</button>
+      </span>
+    </div>
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="min-w-[18rem] flex-1"><label class="label">Viewing</label>
+        <div class="input bg-slate-50 dark:bg-slate-800/60 truncate" :title="selRow ? optLabel(selRow) : ''" x-text="selRow ? optLabel(selRow) : 'Click a run in the list below to open it'"></div></div>
+      <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/tearsheet.pdf'">PDF tearsheet</a>
+      <a class="btn" x-show="bt" :href="'/api/backtests/' + (bt && bt.id) + '/export.csv'">CSV</a>
+      <div class="min-w-[14rem]"><label class="label">Bot (backtest vs forward)</label><select class="input" x-model.number="botId" @change="loadBot()"><option :value="null">–</option><template x-for="b in bots" :key="b.id"><option :value="b.id" x-text="b.name"></option></template></select></div>
+    </div>
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="min-w-[14rem] flex-1"><label class="label">Search</label><input class="input" x-model="q" placeholder="#id, strategy, symbol or setting, e.g. ema 10, KO, slow 200"></div>
+      <div class="min-w-[12rem]"><label class="label">Strategy</label><select class="input" x-model="fStrat"><option value="">All strategies</option><template x-for="k in strategyKeys" :key="k"><option :value="k" x-text="k"></option></template></select></div>
+    </div>
+    <div class="scroll-x max-h-72 overflow-y-auto" x-show="list.length">
+      <table class="t"><thead><tr><th title="Tick runs to compare (2-5) or delete">Tick</th><th>#</th><th>Run</th><th>Settings</th><th class="num">Sharpe</th><th class="num">CAGR</th><th class="num">Max DD</th><th>Date</th><th></th></tr></thead>
+        <template x-for="g in groups" :key="g.title"><tbody>
+          <tr x-show="g.rows.length" class="cursor-pointer select-none" @click="fold(g.title)"><td colspan="9" class="text-xs muted font-semibold uppercase tracking-wide pt-3" x-text="(folded[g.title] ? '▸ ' : '▾ ') + g.title + ' (' + g.rows.length + ')'"></td></tr>
+          <template x-for="b in (folded[g.title] ? [] : g.rows)" :key="b.id"><tr class="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" :class="b.id === selId ? 'bg-blue-50 dark:bg-slate-800 font-semibold' : ''" @click="pick(b.id)">
+            <td @click.stop><input type="checkbox" title="Tick to compare or delete - click the row to open it" :checked="cmpIds.includes(b.id)" @change="toggleCmp(b.id)"></td>
+            <td x-text="'#' + b.id"></td>
+            <td><span x-text="b.name"></span> <span class="badge badge-ok" x-show="b.id === selId">viewing</span> <span class="badge badge-info" x-show="b.sample" title="Course sample - the labs refer to it, so it cannot be deleted">sample</span></td>
+            <td class="text-xs muted max-w-[16rem] truncate" :title="settings(b)" x-text="settings(b)"></td>
+            <td class="num" x-text="QTS.num(b.metrics && b.metrics.sharpe)"></td>
+            <td class="num" x-text="QTS.pct(b.metrics && b.metrics.cagr)"></td>
+            <td class="num" x-text="QTS.pct(b.metrics && b.metrics.max_drawdown)"></td>
+            <td class="text-xs muted whitespace-nowrap" x-text="(b.created_at || '').slice(0, 10)"></td>
+            <td @click.stop><button class="btn-link text-xs text-red-600" x-show="!b.sample" @click="removeOne(b)" title="Delete this run">Delete</button></td>
+          </tr></template>
+        </tbody></template></table>
+      <div x-show="!shown.length" class="text-sm muted py-3">No runs match the search.</div>
+    </div>
   </div>
   <div x-show="!list.length" class="empty">No completed backtests yet - run one on the Backtest page or seed the demo data.</div>
   <template x-if="bt">
@@ -25,15 +57,12 @@
     </div>
   </template>
 
-  <div class="card space-y-3">
-    <div class="card-title">Compare runs side by side <span class="card-sub">tick 2-5 backtests</span><button class="btn-primary btn-xs ml-auto" @click="compare()">Compare</button></div>
-    <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto"><template x-for="b in list" :key="b.id"><label class="inline-flex items-center gap-1 text-xs border border-slate-200 dark:border-slate-700 rounded px-2 py-1"><input type="checkbox" :checked="cmpIds.includes(b.id)" @change="toggleCmp(b.id)"><span x-text="'#' + b.id + ' ' + b.name"></span></label></template></div>
-    <template x-if="cmp.length"><div class="space-y-3">
-      <div style="height:280px"><canvas x-ref="cmp"></canvas></div>
-      <div class="scroll-x"><table class="t"><thead><tr><th>Metric</th><template x-for="c in cmp"><th class="num" x-text="'#' + c.id"></th></template></tr></thead>
-        <tbody><template x-for="k in keys"><tr><td :title="QTS.metricTip(k)" x-text="QTS.label(k)"></td><template x-for="c in cmp"><td class="num" x-text="QTS.fmtMetric(k, c.metrics[k])"></td></template></tr></template></tbody></table></div>
-    </div></template>
-  </div>
+  <template x-if="cmp.length"><div class="card space-y-3">
+    <div class="card-title">Compare runs side by side <button class="btn btn-xs ml-auto" @click="cmp = []">Close</button></div>
+    <div style="height:280px"><canvas x-ref="cmp"></canvas></div>
+    <div class="scroll-x"><table class="t"><thead><tr><th>Metric</th><template x-for="c in cmp"><th class="num" x-text="'#' + c.id"></th></template></tr></thead>
+      <tbody><template x-for="k in keys"><tr><td :title="QTS.metricTip(k)" x-text="QTS.label(k)"></td><template x-for="c in cmp"><td class="num" x-text="QTS.fmtMetric(k, c.metrics[k])"></td></template></tr></template></tbody></table></div>
+  </div></template>
 
   <template x-if="botCmp">
     <div class="card space-y-2">

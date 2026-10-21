@@ -20,6 +20,23 @@ def test_read_endpoints(client):
         assert r.status_code == 200, (path, r.text[:200])
 
 
+def test_delete_runs_keeps_course_samples(client):
+    def run():
+        return client.post("/api/backtests", json={"strategy_key": "ema_cross", "symbols": ["SPY"],
+                                                   "params": {"fast": 10, "slow": 30}}).json()["id"]
+    a, b, c = run(), run(), run()
+    listed = {x["id"]: x for x in client.get("/api/backtests?limit=1").json()}
+    samples = [i for i, x in listed.items() if x["sample"]]
+    assert samples and a not in samples                                  # samples stay listed past the limit
+    assert client.delete(f"/api/backtests/{samples[0]}").status_code == 400
+    assert client.delete(f"/api/backtests/{a}").json() == {"deleted": a}
+    r = client.post("/api/backtests/delete", json={"ids": [b, samples[0]]}).json()
+    assert r == {"deleted": [b], "kept_samples": [samples[0]]}
+    assert c in client.post("/api/backtests/delete", json={"all": True}).json()["deleted"]
+    left = client.get("/api/backtests?limit=500").json()
+    assert left and all(x["sample"] for x in left)
+
+
 def test_bars_with_indicators(client):
     d = client.get("/api/data/bars?symbol=SPY&start=2025-01-01&indicators=sma:200,rsi,macd").json()
     assert d["count"] > 200 and d["indicators"]["sma:200"]["series"]["sma"][0][1] is not None   # warm-up from history

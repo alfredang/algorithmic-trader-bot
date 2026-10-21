@@ -321,7 +321,8 @@ class AlpacaPaperBroker(SimBroker):
             raise BrokerError("Alpaca paper keys are not configured (APCA_API_KEY_ID / APCA_API_SECRET_KEY)")
         from alpaca.trading.client import TradingClient
         self.client = TradingClient(api_key=s.alpaca_key_id, secret_key=s.alpaca_secret_key, paper=True)   # PAPER ONLY
-        base = str(getattr(self.client, "_base_url", "paper"))
+        base = getattr(self.client, "_base_url", "paper")
+        base = str(getattr(base, "value", base))   # alpaca-py >=0.4x: BaseURL enum, str() is "BaseURL.TRADING_PAPER"
         if "paper" not in base:
             raise BrokerError("refusing a non-paper Alpaca endpoint")
 

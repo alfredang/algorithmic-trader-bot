@@ -7,20 +7,37 @@ import re
 import textwrap
 
 import pandas as pd
+import yaml
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from trader.config import LABS_MANIFEST
 from trader.models import StrategyRecord
 from trader.strategies import sandbox
 from trader.strategies.base import Strategy, parse_params
 from trader.strategies.builtin import REGISTRY
 
-CATEGORY_TAGS = ["Execution algorithms", "Market making", "Arbitrage", "Directional / alpha",
-                 "Statistical arbitrage and pairs", "Factor and portfolio", "Hedging and risk"]
+# Strategy types in the order the labs teach them (the library and the backtest picker group by these)
+CATEGORY_TAGS = ["Benchmark", "Trend following", "Momentum", "Mean reversion", "Breakout / volatility",
+                 "Statistical arbitrage (pairs)", "Machine learning", "Sentiment and AI agents",
+                 "Execution algorithms", "Market making", "Custom"]
 
 
-def builtin_descriptor(cls: type[Strategy]) -> dict:
+def lab_refs() -> dict[str, set[int]]:
+    """Strategy key -> lab ids whose app links (strategy= / key= / a= / b=) open it."""
+    if not LABS_MANIFEST.exists():
+        return {}
+    refs: dict[str, set[int]] = {}
+    for lab in (yaml.safe_load(LABS_MANIFEST.read_text()) or {}).get("labs", []):
+        for step in lab.get("steps", []):
+            for key in re.findall(r"[?&](?:strategy|key|a|b)=(\w+)", step.get("app_route", "")):
+                refs.setdefault(key, set()).add(lab["id"])
+    return refs
+
+
+def builtin_descriptor(cls: type[Strategy], refs: dict[str, set[int]] | None = None) -> dict:
     info = cls.info
+    refs = lab_refs() if refs is None else refs
     schema = cls.schema_dict()
     return {"key": info.key, "name": info.name, "kind": info.kind, "builtin": True, "custom": False,
             "params_schema": schema, "default_params": {p["name"]: p.get("default") for p in schema},
@@ -29,28 +46,34 @@ def builtin_descriptor(cls: type[Strategy]) -> dict:
             "tags": {"category": info.category, "family": info.family, "holding_period": info.holding_period,
                      "model_type": info.model_type},
             "summary": info.summary, "how": info.how, "rule": info.rule, "works_best": info.works_best,
-            "watch_out": info.watch_out, "course_ref": info.course_ref}
+            "watch_out": info.watch_out, "course_ref": info.course_ref,
+            "labs": sorted(set(info.labs) | refs.get(info.key, set()))}
 
 
-def custom_descriptor(r: StrategyRecord) -> dict:
+def custom_descriptor(r: StrategyRecord, refs: dict[str, set[int]] | None = None) -> dict:
     info = r.info or {}
+    refs = lab_refs() if refs is None else refs
+    category = info.get("category") if info.get("category") in CATEGORY_TAGS else "Custom"
     return {"key": r.key, "name": r.name, "kind": r.kind or "signal", "builtin": False, "custom": True,
             "params_schema": r.params_schema or [], "default_params": r.default_params or {},
             "multi_asset": r.multi_asset, "allow_short": bool(info.get("allow_short", False)),
             "default_symbols": info.get("default_symbols", ["SPY"]), "needs": info.get("needs", []), "pine": False,
-            "tags": {"category": info.get("category", "Directional / alpha"), "family": info.get("family", "Custom"),
+            "tags": {"category": category, "family": info.get("family", "Custom"),
                      "holding_period": info.get("holding_period", "Swing"), "model_type": info.get("model_type", "Rule-based")},
             "summary": info.get("summary", "User-defined Python strategy."), "how": info.get("how", ""),
             "rule": info.get("rule", ""), "works_best": info.get("works_best", ""), "watch_out": info.get("watch_out", ""),
-            "course_ref": info.get("course_ref", ""), "code": r.code, "parent_key": r.parent_key,
+            "course_ref": info.get("course_ref", ""), "labs": sorted(set(info.get("labs", [])) | refs.get(r.key, set())),
+            "code": r.code, "parent_key": r.parent_key,
             "validated": r.validated, "validation": r.validation,
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "updated_at": r.updated_at.isoformat() if r.updated_at else None}
 
 
 def list_all(db: Session) -> list[dict]:
-    out = [builtin_descriptor(c) for c in REGISTRY.values()]
-    out += [custom_descriptor(r) for r in db.scalars(select(StrategyRecord).where(StrategyRecord.builtin.is_(False))
+    refs = lab_refs()
+    out = sorted((builtin_descriptor(c, refs) for c in REGISTRY.values()),
+                 key=lambda d: CATEGORY_TAGS.index(d["tags"]["category"]))       # stable: registry order within a type
+    out += [custom_descriptor(r, refs) for r in db.scalars(select(StrategyRecord).where(StrategyRecord.builtin.is_(False))
                                                      .order_by(StrategyRecord.created_at))]
     return out
 

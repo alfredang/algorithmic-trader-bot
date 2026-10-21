@@ -103,7 +103,7 @@ class StrategyInfo:
     key: str
     name: str
     kind: str = "signal"                  # signal | portfolio | execution | market_making | agentic
-    category: str = "Directional / alpha"
+    category: str = "Custom"              # lab-aligned strategy type, see registry.CATEGORY_TAGS
     family: str = "Trend following"
     holding_period: str = "Position"
     model_type: str = "Rule-based"
@@ -116,6 +116,7 @@ class StrategyInfo:
     default_symbols: list[str] = field(default_factory=lambda: ["SPY"])
     pine: bool = False
     needs: list[str] = field(default_factory=list)   # e.g. ["sentiment"], ["intraday"]
+    labs: list[int] = field(default_factory=list)    # course labs that use it (plus any lab whose app links name it)
 
 
 class Strategy:

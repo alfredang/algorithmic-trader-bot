@@ -27,7 +27,7 @@ labs:
     course_link: "Topic 1.1-1.4; Lab 01 pipeline configuration"
     steps:
       - title: "Load the demo data"
-        instruction: "Open Settings and press 'Load / refresh demo data' (or run `uv run trader seed`). This caches 12 symbols of daily bars 2018-2025, SPY hourly bars, sample headlines, two custom strategies and sample backtests."
+        instruction: "Open Settings and press 'Load / refresh demo data' (or run `uv run trader seed`). This caches 13 symbols of daily bars 2018-2025, SPY hourly bars, sample headlines, two custom strategies and sample backtests."
         app_route: "settings"
         preset: "Settings > Demo data"
         check: "Settings shows about 29,000 bars and at least 8 backtests."

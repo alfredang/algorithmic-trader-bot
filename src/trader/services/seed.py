@@ -28,6 +28,11 @@ SAMPLE_BACKTESTS = [
      "symbols": ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "JPM", "XLF", "GLD", "TLT"]},
     {"name": "KO / PEP pairs trade (hedged)", "strategy_key": "pairs_cointegration", "symbols": ["KO", "PEP"]},
     {"name": "Buy and hold SPY (benchmark)", "strategy_key": "buy_hold", "symbols": ["SPY"]},
+    # single stocks - the same EMA 10/30 rule on a steady mega-cap and a volatile one, each with its own buy and hold
+    {"name": "EMA 10/30 crossover on AAPL", "strategy_key": "ema_cross", "symbols": ["AAPL"], "params": {"fast": 10, "slow": 30}},
+    {"name": "Buy and hold AAPL", "strategy_key": "buy_hold", "symbols": ["AAPL"]},
+    {"name": "EMA 10/30 crossover on TSLA", "strategy_key": "ema_cross", "symbols": ["TSLA"], "params": {"fast": 10, "slow": 30}},
+    {"name": "Buy and hold TSLA", "strategy_key": "buy_hold", "symbols": ["TSLA"]},
 ]
 
 

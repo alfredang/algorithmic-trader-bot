@@ -15,6 +15,9 @@ from trader.services import backtests as BT
 from trader.services import research as R
 from trader.services import tearsheet as TS
 from trader.services.events import stage
+from trader.services.seed import SAMPLE_BACKTESTS
+
+SAMPLE_NAMES = {b["name"] for b in SAMPLE_BACKTESTS}   # course samples the labs refer to - never deleted
 
 router = APIRouter(prefix="/api", tags=["backtests & research"])
 
@@ -47,7 +50,36 @@ def list_backtests(limit: int = 100, strategy: str | None = None, db: Session = 
     q = select(Backtest).order_by(Backtest.id.desc()).limit(limit)
     if strategy:
         q = q.where(Backtest.strategy_key == strategy)
-    return [BT.to_dict(b, full=False) for b in db.scalars(q)]
+    rows = list(db.scalars(q))
+    if not strategy:   # the course samples stay listed however many runs come after them
+        seen = {b.id for b in rows}
+        rows += [b for b in db.scalars(select(Backtest).where(Backtest.name.in_(SAMPLE_NAMES)).order_by(Backtest.id.desc()))
+                 if b.id not in seen]
+    return [BT.to_dict(b, full=False) | {"sample": b.name in SAMPLE_NAMES} for b in rows]
+
+
+def _delete_runs(db: Session, runs: list[Backtest]) -> list[int]:
+    ids = [b.id for b in runs]
+    if ids:
+        for bot in db.scalars(select(Bot).where(Bot.backtest_id.in_(ids))):
+            bot.backtest_id = None   # the bot keeps running; it just loses its backtest-vs-forward link
+        for b in runs:
+            db.delete(b)
+        db.commit()
+    return ids
+
+
+@router.post("/backtests/delete")
+def delete_backtests(body: dict = Body(...), db: Session = Depends(get_db)):
+    """Delete the given runs, or every run except the course samples with {"all": true}."""
+    if body.get("all"):
+        runs = list(db.scalars(select(Backtest).where(Backtest.name.not_in(SAMPLE_NAMES))))
+    else:
+        ids = [int(i) for i in body.get("ids") or []]
+        runs = list(db.scalars(select(Backtest).where(Backtest.id.in_(ids)))) if ids else []
+    kept = [b.id for b in runs if b.name in SAMPLE_NAMES]
+    deleted = _delete_runs(db, [b for b in runs if b.name not in SAMPLE_NAMES])
+    return {"deleted": deleted, "kept_samples": kept}
 
 
 @router.get("/backtests/compare")
@@ -74,8 +106,9 @@ def delete_backtest(bid: int, db: Session = Depends(get_db)):
     b = db.get(Backtest, bid)
     if not b:
         raise HTTPException(404, "backtest not found")
-    db.delete(b)
-    db.commit()
+    if b.name in SAMPLE_NAMES:
+        raise HTTPException(400, "course sample runs are kept - the labs refer to them")
+    _delete_runs(db, [b])
     return {"deleted": bid}
 
 

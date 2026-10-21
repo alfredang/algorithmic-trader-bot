@@ -156,14 +156,55 @@
     return {
       list: [], bots: [], bt: null, selId: q.backtest ? parseInt(q.backtest, 10) : null, cmpIds: [], cmp: [], botId: q.bot ? parseInt(q.bot, 10) : null, botCmp: null, QTS: Q,
       keys: ['total_return', 'cagr', 'volatility', 'sharpe', 'sortino', 'calmar', 'max_drawdown', 'max_dd_duration', 'win_rate', 'profit_factor', 'expectancy', 'avg_win', 'avg_loss', 'trades', 'exposure', 'turnover', 'alpha', 'beta', 'information_ratio', 'total_costs', 'break_even_bps'],
+      q: '', fStrat: '', folded: (() => { try { return JSON.parse(localStorage.getItem('qts.runs.folded')) || {}; } catch (e) { return {}; } })(),
       async init() {
-        [this.list, this.bots] = await Promise.all([Q.get('/api/backtests?limit=100'), Q.get('/api/bots')]);
-        this.list = this.list.filter((b) => b.status === 'done' && !['execution', 'market_making'].includes(b.kind));
+        [this.list, this.bots] = await Promise.all([this.fetchList(), Q.get('/api/bots')]);
         if (!this.selId && this.list.length) this.selId = this.list[0].id;
         if (this.selId) this.load();
         if (this.botId) this.loadBot();
         Q.on('theme', () => this.draw());
       },
+      async fetchList() {
+        return (await Q.get('/api/backtests?limit=500')).filter((b) => b.status === 'done' && !['execution', 'market_making'].includes(b.kind));
+      },
+      settings(b) { return Object.entries(b.params || {}).map(([k, v]) => k.replace(/_/g, ' ') + ' ' + v).join(', ') || 'defaults'; },
+      get strategyKeys() { return [...new Set(this.list.map((b) => b.strategy_key))].sort(); },
+      get shown() {
+        const words = this.q.toLowerCase().split(/\s+/).filter(Boolean);
+        return this.list.filter((b) => (!this.fStrat || b.strategy_key === this.fStrat) && words.every((w) => {
+          const hay = ['#' + b.id, b.name, b.strategy_key, (b.symbols || []).join(' '), this.settings(b)].join(' ').toLowerCase();
+          return hay.includes(w) || ('#' + b.id) === w || String(b.id) === w;
+        }));
+      },
+      // the learner's own runs on top, then the course samples - both newest first
+      get groups() {
+        const rows = [...this.shown].sort((a, b) => b.id - a.id);
+        return [{ title: 'Your runs (newest first)', rows: rows.filter((b) => !b.sample) },
+                { title: 'Course samples', rows: rows.filter((b) => b.sample) }];
+      },
+      get mine() { return this.list.filter((b) => !b.sample); },
+      get selRow() { return this.list.find((b) => b.id === this.selId); },
+      optLabel(b) { return `#${b.id} ${b.name} · ${this.settings(b)}`; },
+      get ticked() { return this.cmpIds; },
+      get tickedMine() { return this.list.filter((b) => !b.sample && this.cmpIds.includes(b.id)); },
+      pick(id) { this.selId = id; this.load(); },
+      fold(t) { this.folded = { ...this.folded, [t]: !this.folded[t] }; try { localStorage.setItem('qts.runs.folded', JSON.stringify(this.folded)); } catch (e) { /* private window */ } },
+      async deleteRuns(body, msg) {
+        if (!confirm(msg + '\nThe course sample runs are always kept. This cannot be undone.')) return;
+        const r = await Q.post('/api/backtests/delete', body);
+        Q.toast(`Deleted ${r.deleted.length} run${r.deleted.length === 1 ? '' : 's'}`, 'ok');
+        this.cmpIds = this.cmpIds.filter((id) => !r.deleted.includes(id));
+        this.cmp = this.cmp.filter((c) => !r.deleted.includes(c.id));
+        this.list = await this.fetchList();
+        if (r.deleted.includes(this.selId)) {
+          const first = this.list.find((b) => b.sample) || this.list[0];
+          this.selId = first ? first.id : null; this.bt = null;
+          if (this.selId) this.load();
+        }
+      },
+      removeOne(b) { return this.deleteRuns({ ids: [b.id] }, `Delete run #${b.id} ${b.name} (${this.settings(b)})?`); },
+      removeTicked() { return this.deleteRuns({ ids: this.tickedMine.map((b) => b.id) }, `Delete the ${this.tickedMine.length} ticked run(s)?`); },
+      clearMine() { return this.deleteRuns({ all: true }, `Delete all ${this.mine.length} of your runs?`); },
       async load() { this.bt = await Q.get('/api/backtests/' + this.selId); this.$nextTick(() => this.draw()); },
       draw() {
         const r = this.bt; if (!r || !r.series) return;
@@ -171,9 +212,9 @@
         Q.lineChart(this.$refs.dd, [{ label: 'Drawdown', data: r.series.drawdown, color: '#ef4444', fill: true }], { fmt: (v) => Q.pct(v, 0) });
         Q.lineChart(this.$refs.roll, [{ label: 'Rolling Sharpe', data: r.series.rolling_sharpe, color: '#8b5cf6' }]);
       },
-      toggleCmp(id) { const i = this.cmpIds.indexOf(id); if (i >= 0) this.cmpIds.splice(i, 1); else if (this.cmpIds.length < 5) this.cmpIds.push(id); },
+      toggleCmp(id) { const i = this.cmpIds.indexOf(id); if (i >= 0) this.cmpIds.splice(i, 1); else this.cmpIds.push(id); },
       async compare() {
-        if (this.cmpIds.length < 2) { Q.toast('Tick at least two backtests to compare', 'error'); return; }
+        if (this.cmpIds.length < 2 || this.cmpIds.length > 5) { Q.toast('Tick 2-5 runs to compare', 'error'); return; }
         this.cmp = await Q.get('/api/backtests/compare?ids=' + this.cmpIds.join(','));
         this.$nextTick(() => {
           Q.lineChart(this.$refs.cmp, this.cmp.map((c, i) => { const base = (c.equity[0] || [0, 1])[1] || 1; return { label: '#' + c.id + ' ' + c.name, data: c.equity.map((p) => [p[0], p[1] / base * 100]), color: Q.palette[i] }; }), { fmt: (v) => Q.num(v, 0) });
