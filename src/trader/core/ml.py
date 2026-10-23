@@ -18,7 +18,7 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, roc_auc_score
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from trader.core import indicators as ta
@@ -108,7 +108,7 @@ def feature_importance(bars: pd.DataFrame, model: str = "random_forest") -> dict
     f = build_features(bars).dropna()
     X, y = f.drop(columns="target"), f["target"].astype(int)
     m = MODELS[model][1]().fit(X.values, y.values)
-    est = m[-1] if hasattr(m, "__getitem__") else m
+    est = m[-1] if isinstance(m, Pipeline) else m      # a forest also supports m[-1] (its last tree)
     if hasattr(est, "feature_importances_"):
         imp = est.feature_importances_
     elif hasattr(est, "coef_"):

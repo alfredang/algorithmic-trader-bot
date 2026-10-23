@@ -36,6 +36,8 @@
   };
 
   Q.barChart = function (target, labels, datasets, opts = {}) {
+    // fmt formats the value axis only; the category axis keeps Chart.js's default label callback
+    const valueTicks = (isValue) => ({ color: txt(), font: { size: 10 }, ...(isValue && opts.fmt ? { callback: (v) => opts.fmt(v) } : {}) });
     const canvas = el(target);
     if (!canvas) return null;
     const old = Chart.getChart(canvas); if (old) old.destroy();
@@ -44,8 +46,8 @@
         backgroundColor: d.colors || d.color || Q.palette[i % 8], borderRadius: 3, stack: opts.stacked ? 's' : undefined })) },
       options: { responsive: true, maintainAspectRatio: false, animation: false, indexAxis: opts.horizontal ? 'y' : 'x',
         plugins: { legend: { display: datasets.length > 1, labels: { color: txt(), font: { size: 11 } } } },
-        scales: { x: { stacked: !!opts.stacked, ticks: { color: txt(), font: { size: 10 } }, grid: { color: grid() } },
-          y: { stacked: !!opts.stacked, ticks: { color: txt(), font: { size: 10 }, callback: opts.fmt ? (v) => opts.fmt(v) : undefined }, grid: { color: grid() } } } },
+        scales: { x: { stacked: !!opts.stacked, ticks: valueTicks(opts.horizontal), grid: { color: grid() } },
+          y: { stacked: !!opts.stacked, ticks: valueTicks(!opts.horizontal), grid: { color: grid() } } } },
     });
     Q.charts.push(c);
     return c;
