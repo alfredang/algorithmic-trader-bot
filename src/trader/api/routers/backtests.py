@@ -204,7 +204,8 @@ def pairs(body: dict = Body(default={}), db: Session = Depends(get_db)):
 
 @router.post("/research/ml")
 def ml(body: dict = Body(default={}), db: Session = Depends(get_db)):
-    return _done(db, R.ml_report(db, body.get("symbol", "SPY"), body.get("models"), float(body.get("threshold", 0.55))))
+    return _done(db, R.ml_report(db, body.get("symbol", "SPY"), body.get("models"), float(body.get("threshold", 0.55)),
+                                 bool(body.get("tune", True))))
 
 
 @router.post("/research/execution")

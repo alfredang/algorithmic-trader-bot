@@ -277,15 +277,15 @@ labs:
   - id: 11
     topic: 3
     title: "ML signal: walk-forward classifiers"
-    objective: "Train logistic regression, random forest and XGBoost walk-forward and trade P(up) > threshold."
-    expected: "Accuracy / AUC table, feature importance and a net-of-cost backtest of the ML signal."
+    objective: "Train logistic regression, random forest and XGBoost walk-forward - tune each on its in-sample window, test it out-of-sample - and trade P(up) > threshold."
+    expected: "In-sample vs validation vs out-of-sample AUC table, per-fold breakdown, feature importance and a net-of-cost backtest of the ML signal."
     course_link: "Topic 3.2; Lab 11"
     steps:
-      - title: "Train the classifiers"
-        instruction: "Research > ML models on SPY, threshold 0.55."
+      - title: "Train and tune the classifiers"
+        instruction: "Research > ML models on SPY, threshold 0.55, Tune in-sample ticked. Each refit tunes the model's main setting (C or tree depth) on the first 75% of its training window, picks the best validation AUC on the last 25%, refits on the whole window, then predicts the next 126 unseen bars."
         app_route: "research/ml"
         preset: "Research > ML SPY"
-        check: "AUC close to 0.5 - daily direction is close to a coin toss; read the verdict."
+        check: "In-sample AUC is high (XGBoost near 0.9) but out-of-sample AUC is close to 0.5 - the gap is overfitting and daily direction is close to a coin toss. Open 'Walk-forward folds' to see each refit's chosen setting; read the verdict."
       - title: "Backtest an ML strategy"
         instruction: "Backtest 'ML: XGBoost (walk-forward)' on SPY."
         app_route: "backtest?strategy=ml_xgboost&symbols=SPY"

@@ -17,7 +17,7 @@
       rg: { symbol: q.symbol || 'SPY', clusters: 3, base: 'ema_cross' },
       dg: { strategy_key: q.strategy || 'custom_lab18_biased_smoothed_momentum', symbol: q.symbol || 'SPY', trials: 76 },
       pr: { pairs: 'KO/PEP, JPM/BAC, XLF/JPM, SPY/QQQ, GLD/TLT', formation_end: '2022-12-31' },
-      ml: { symbol: q.symbol || 'SPY', threshold: 0.55 }, ex: { symbol: q.symbol || 'SPY', day: '', side: 'buy', qty: 50000, participation: 0.1, impact_coef: 0.1 },
+      ml: { symbol: q.symbol || 'SPY', threshold: 0.55, tune: true }, ex: { symbol: q.symbol || 'SPY', day: '', side: 'buy', qty: 50000, participation: 0.1, impact_coef: 0.1 },
       kinds: { hypothesis: 'hypothesis', grid: 'grid', walkforward: 'walk_forward', abtest: 'abtest', regime: 'regime', diagnostics: 'diagnostics', pairs: 'pairs', ml: 'ml', execution: 'execution' },
       async init() {
         [this.strategies, this.grids, this.hsignals] = await Promise.all([Q.get('/api/strategies'), Q.get('/api/research/grids'), Q.get('/api/research/hypothesis/signals')]);
@@ -65,7 +65,14 @@
           if (ov) Q.scatterChart(this.$refs.c1, [{ label: 'skill-free random strategies', data: ov.random_is.map((x, i) => ({ x, y: ov.random_oos[i] })), color: 'rgba(100,116,139,.5)' },
             { label: r.name, data: [{ x: ov.strategy[0], y: ov.strategy[1] }], color: '#e87122', r: 7 }], { x: 'In-sample Sharpe', y: 'Out-of-sample Sharpe' });
         }
-        if (k === 'ml') Q.barChart(this.$refs.c1, Object.keys(r.importance).slice(0, 14), [{ label: 'Random-forest feature importance', data: Object.values(r.importance).slice(0, 14) }], { horizontal: true });
+        if (k === 'ml') {
+          Q.barChart(this.$refs.c1, Object.keys(r.importance).slice(0, 14), [{ label: 'Random-forest feature importance', data: Object.values(r.importance).slice(0, 14) }], { horizontal: true });
+          const is = (m) => m.in_sample || {};
+          Q.barChart(this.$refs.c2, r.models.map((m) => m.model), [
+            { label: 'In-sample AUC (training window)', data: r.models.map((m) => is(m).is_auc), color: '#94a3b8' },
+            ...(r.tune ? [{ label: 'Validation AUC (tuning hold-out)', data: r.models.map((m) => is(m).val_auc), color: '#2f6db5' }] : []),
+            { label: 'Out-of-sample AUC (unseen blocks)', data: r.models.map((m) => m.auc), color: '#e87122' }], { fmt: (v) => Q.num(v, 2) });
+        }
         if (k === 'execution') {
           const algos = Object.keys(r.detail);
           Q.lineChart(this.$refs.c1, algos.map((a, i) => ({ label: a.toUpperCase() + ' fill price', data: r.detail[a].map((c) => [c.time, c.price]), color: Q.palette[i] })), { timeLen: 16 });

@@ -343,7 +343,7 @@ def pairs_screen(db: Session, pairs=None, formation_end="2022-12-31") -> Researc
 
 
 # --------------------------------------------------------------------------- ML report
-def ml_report(db: Session, symbol="SPY", models=None, threshold=0.55) -> ResearchRun:
+def ml_report(db: Session, symbol="SPY", models=None, threshold=0.55, tune=True) -> ResearchRun:
     models = models or ["logistic", "random_forest", "xgboost"]
 
     def go():
@@ -351,17 +351,23 @@ def ml_report(db: Session, symbol="SPY", models=None, threshold=0.55) -> Researc
         out = []
         cfg = _cfg({})
         for m in models:
-            proba, folds = ML.walk_forward_proba(bars, m)
+            proba, folds = ML.walk_forward_proba(bars, m, tune=tune)
             rep = ML.classification_report(bars, proba)
+            summary = ML.fold_summary(folds)
+            if "auc" in rep and summary.get("is_auc") is not None and summary["is_auc"] - rep["auc"] > 0.05:
+                rep["verdict"] += (f". Overfitting: in-sample AUC {summary['is_auc']:.2f} vs {rep['auc']:.2f} on unseen"
+                                   " bars - most of the training fit does not carry over")
             sig = (proba > threshold).astype(float).where(proba.notna(), 0.0)
             start = proba.first_valid_index()
             res = run_backtest({symbol: bars.loc[start:]}, sig.loc[start:], cfg)
-            out.append({"model": ML.MODELS[m][0], "key": m, **rep, "folds": folds.to_dict("records"),
-                        "backtest": res.metrics()})
+            out.append({"model": ML.MODELS[m][0], "key": m, **rep, "in_sample": summary,
+                        "grid": {"param": ML.GRIDS[m][0], "values": ML.GRIDS[m][1]} if tune else None,
+                        "folds": folds.to_dict("records"), "backtest": res.metrics()})
         bh = buy_and_hold({symbol: bars.loc[proba.first_valid_index():]}, cfg).metrics()
-        return {"symbol": symbol, "threshold": threshold, "models": out, "bh": bh,
+        return {"symbol": symbol, "threshold": threshold, "tune": tune, "models": out, "bh": bh,
                 "importance": ML.feature_importance(bars.iloc[:-1], "random_forest")}
-    return _record(db, "ml", f"ML classifiers on {symbol}", locals_cfg(symbol=symbol, models=models), go)
+    return _record(db, "ml", f"ML classifiers on {symbol}" + (" (tuned in-sample)" if tune else ""),
+                   locals_cfg(symbol=symbol, models=models, threshold=threshold, tune=tune), go)
 
 
 # --------------------------------------------------------------------------- execution algos
