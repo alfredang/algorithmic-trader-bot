@@ -153,7 +153,7 @@
   /* ------------------------------------------------------------------ course labs */
   window.labsPage = function () {
     return {
-      labs: [], topics: [], course: {}, lab: null, user: 'local', loading: true, showPy: {}, QTS: Q, testSymbol: Q.ls.get('labSymbol', ''),
+      labs: [], topics: [], course: {}, lab: null, user: 'local', loading: true, showPy: {}, QTS: Q, testSymbol: Q.ls.get('labSymbol', ''), otherOpen: false, otherSymbol: '',
       async init() {
         await this.load();
         const id = Q.query().lab; if (id) this.open(parseInt(id, 10));
@@ -169,6 +169,10 @@
       async reset() { if (!confirm('Reset your progress for this lab?')) return; this.lab = await Q.post(`/api/labs/${this.lab.id}/reset`); this.load(); },
       pctDone(l) { return l.n_steps ? Math.round((100 * l.completed) / l.n_steps) : 0; },
       saveSymbol() { this.testSymbol = this.testSymbol.trim().toUpperCase(); Q.ls.set('labSymbol', this.testSymbol); },
+      // every symbol with stored bars (the 13 demo stocks after seeding, plus any you fetched) and the current pick
+      get symbolChoices() { const s = new Set(Alpine.store('app').symbols || []); if (this.testSymbol) s.add(this.testSymbol); return [...s].sort(); },
+      pickSymbol(v) { this.otherOpen = v === '__other'; if (!this.otherOpen) { this.testSymbol = v; this.saveSymbol(); } },
+      useOther() { if (!this.otherSymbol.trim()) return; this.testSymbol = this.otherSymbol; this.otherSymbol = ''; this.otherOpen = false; this.saveSymbol(); },
       // a step's route with the learner's test symbol swapped in for the lab default; multi-symbol steps (pairs) keep theirs
       retarget(route) {
         const sym = this.testSymbol;
@@ -176,7 +180,7 @@
         const m = route.match(/([?&])(symbols?)=([^&]*)/);
         if (m) return m[3].includes(',') ? { route, from: null } : { route: route.replace(m[0], `${m[1]}${m[2]}=${encodeURIComponent(sym)}`), from: m[3] };
         const key = /^research\/(hypothesis|grid|walkforward|abtest|regime|diagnostics|ml)\b|^trading\?(.*&)?tab=ticket/.test(route) ? 'symbol'
-          : /^trading\?(.*&)?new=1/.test(route) ? 'symbols' : null;
+          : /^trading\?(.*&)?new=1|^(builder|agents)\b/.test(route) ? 'symbols' : null;
         return key ? { route: route + (route.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(sym), from: 'SPY' } : { route, from: null };
       },
       routeFor(s) { return this.retarget(s.app_route).route; },

@@ -99,6 +99,13 @@ proposals awaiting your approval), recent backtests, the US market clock, the bo
 4. Tick the box. Your progress is saved with a timestamp for the user name set in **Settings**. **Reset progress** clears
    it for that lab.
 
+**Test on another stock.** Pick a stock in the **Test symbol** list at the top of Course Labs (or of any lab), for example
+KO, PEP, TSLA or AAPL. The list holds the 13 bundled demo stocks plus anything you have fetched; **Other ticker…** takes any
+US ticker, whose daily bars are downloaded the first time a page uses it. Every step's **Open** button then uses that stock
+instead of the lab's default (SPY etc.). Pair and multi-symbol steps keep their own symbols, and the **Check** notes were
+written for the default, so your numbers will differ. Pick **Lab defaults** to go back. Every symbol box in the app also
+lists all these stocks when you click into it.
+
 Optional **Under the hood** panels give the equivalent Python or an AI-assistant prompt. The course team edits the labs in
 `labs/course_labs.yaml`; no code changes are needed.
 
@@ -249,7 +256,13 @@ window. The result is a stitched out-of-sample equity curve and the parameters c
 
 ![Walk-forward](screenshots/research_walkforward.png)
 
-**ML models (Lab 11)** shows walk-forward accuracy, AUC, feature importance and the net-of-cost backtest for each model.
+**ML models (Lab 11)** trains logistic regression, random forest and XGBoost walk-forward. Every 126 bars each model is
+refitted on all the bars before that point (**in-sample**). With **Tune in-sample** ticked (the default), the first 75% of
+that training window fits each candidate setting (C for logistic regression, tree depth for the forest and XGBoost), the
+last 25% (**validation**) picks the best, and the winner is refitted on the whole window before it predicts the next 126
+bars it has never seen (**out-of-sample**). The table shows the chosen setting, in-sample and validation AUC next to the
+out-of-sample accuracy, AUC and net-of-cost backtest; the chart and **Walk-forward folds** show the same per refit. A high
+in-sample AUC that falls to about 0.5 out-of-sample is overfitting.
 
 **Regimes (Lab 12).** PCA explained variance and loadings (PC1 ≈ the market). The K-means regime profile, a walk-forward
 regime timeline (refitted on past data only), and gated vs ungated performance: the signal is forced flat in the stress

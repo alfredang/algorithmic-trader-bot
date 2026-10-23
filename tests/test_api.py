@@ -143,3 +143,8 @@ def test_secrets_never_returned(client):
     import json
     body = json.dumps(client.get("/api/integrations").json())
     assert "secret_key" not in body.lower() or "APCA_API_SECRET_KEY" in body
+
+
+def test_symbol_choices_include_the_demo_set(client):
+    syms = client.get("/api/data/symbols").json()
+    assert {"SPY", "KO", "PEP", "TSLA", "AAPL"} <= set(syms) and syms == sorted(syms)

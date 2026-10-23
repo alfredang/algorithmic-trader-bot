@@ -144,6 +144,24 @@ QTS.on = function (kind, fn) { (QTS.listeners[kind] = QTS.listeners[kind] || [])
 QTS.offAll = function () { QTS.listeners = {}; };
 QTS.emitLocal = function (kind, data) { [...(QTS.listeners[kind] || []), ...(QTS.listeners['*'] || [])].forEach((f) => { try { f(data, kind); } catch (e) { console.error(e); } }); };
 
+/* A datalist only offers options that match the box's text, so a box showing "SPY" hides every other symbol.
+   Empty a one-symbol box on focus (no input event, so x-model keeps its value) to list them all, and put the
+   value back on blur if nothing was picked. Boxes holding several symbols ("KO, PEP") are left alone. */
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches('input[list="qts-symbols"]') || /[,\s]/.test(el.value.trim())) return;
+  el.dataset.prev = el.value; el.dataset.ph = el.placeholder;
+  if (el.value) el.placeholder = el.value;
+  el.value = '';
+});
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches('input[list="qts-symbols"]') || el.dataset.prev === undefined) return;
+  if (el.value === '') el.value = el.dataset.prev;
+  el.placeholder = el.dataset.ph;
+  delete el.dataset.prev; delete el.dataset.ph;
+});
+
 document.addEventListener('alpine:init', () => {
   Alpine.store('app', { toasts: [], defs: {}, route: QTS.parseHash(), status: {}, counts: { openOrders: 0, pendingApprovals: 0 }, symbols: [] });
   window.shell = function () {
@@ -169,9 +187,9 @@ document.addEventListener('alpine:init', () => {
         try { this.status = await QTS.get('/api/system/status', true); Alpine.store('app').status = this.status; } catch (e) { /* server down */ }
         try { this.kill = (await QTS.get('/api/kill-switch', true)).on; } catch (e) { /* */ }
       },
-      // symbols with stored bars feed the <datalist id="qts-symbols"> behind every symbol box
+      // symbols with stored bars plus the bundled demo set feed the <datalist id="qts-symbols"> behind every symbol box
       async loadSymbols() {
-        try { Alpine.store('app').symbols = (await QTS.get('/api/instruments', true)).map((i) => i.symbol).sort(); } catch (e) { /* server down */ }
+        try { Alpine.store('app').symbols = await QTS.get('/api/data/symbols', true); } catch (e) { /* server down */ }
       },
       async refreshCounts() {
         try {

@@ -29,6 +29,12 @@ def sources():
     return [{"name": p.name, "label": p.label, "available": p.available()} for p in P.PROVIDERS.values()]
 
 
+@router.get("/data/symbols")
+def symbols(db: Session = Depends(get_db)):
+    """Symbols a learner can pick: everything with stored bars plus the bundled demo set (loaded on first use)."""
+    return sorted(set(db.scalars(select(Instrument.symbol))) | set(P.DEMO_SYMBOLS))
+
+
 @router.get("/instruments")
 def instruments(db: Session = Depends(get_db)):
     rows = db.scalars(select(Instrument).order_by(Instrument.symbol)).all()

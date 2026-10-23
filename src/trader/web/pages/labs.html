@@ -7,8 +7,11 @@
           <div class="text-sm muted">20 hands-on labs, all done in this app with the offline demo data and the simulator broker. Each step opens the right page with the right preset and tells you what to check. Progress is saved for user <b x-text="user"></b> (change it in Settings).</div>
         </div>
         <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-medium">Test symbol</span>
-          <input class="input w-28" list="qts-symbols" x-model="testSymbol" @change="saveSymbol()" placeholder="lab default" title="Every step's Open button uses this symbol instead of the lab's default (SPY etc.)">
-          <button class="btn-link text-xs" x-show="testSymbol" @click="testSymbol=''; saveSymbol()">Use lab defaults</button></div>
+          <select class="input w-36" @change="pickSymbol($event.target.value)" title="Every step's Open button uses this stock instead of the lab's default (SPY etc.)">
+            <option value="" :selected="!testSymbol">Lab defaults</option>
+            <template x-for="s in symbolChoices" :key="s"><option :value="s" :selected="s === testSymbol" x-text="s"></option></template>
+            <option value="__other">Other ticker…</option></select>
+          <input class="input w-24 uppercase" x-show="otherOpen" x-model="otherSymbol" @keydown.enter="useOther()" @change="useOther()" placeholder="e.g. NU" title="Any US ticker - its daily bars are downloaded the first time a page uses it"></div>
         <div class="w-48"><div class="text-xs muted mb-1">Overall progress <span x-text="overall + '%'"></span></div>
           <div class="h-2 rounded bg-slate-200 dark:bg-slate-700"><div class="h-2 rounded bg-emerald-500" :style="'width:' + overall + '%'"></div></div></div>
       </div>
@@ -39,8 +42,11 @@
         <span class="badge badge-info" x-text="'Topic ' + lab.topic"></span>
         <h2 class="text-lg font-semibold" x-text="'Lab ' + String(lab.id).padStart(2,'0') + ' · ' + lab.title"></h2>
         <div class="ml-auto"><div class="flex flex-wrap items-center gap-2"><span class="text-sm font-medium">Test symbol</span>
-            <input class="input w-28" list="qts-symbols" x-model="testSymbol" @change="saveSymbol()" placeholder="lab default" title="Every step's Open button uses this symbol instead of the lab's default (SPY etc.)">
-            <button class="btn-link text-xs" x-show="testSymbol" @click="testSymbol=''; saveSymbol()">Use lab defaults</button></div></div>
+            <select class="input w-36" @change="pickSymbol($event.target.value)" title="Every step's Open button uses this stock instead of the lab's default (SPY etc.)">
+              <option value="" :selected="!testSymbol">Lab defaults</option>
+              <template x-for="s in symbolChoices" :key="s"><option :value="s" :selected="s === testSymbol" x-text="s"></option></template>
+              <option value="__other">Other ticker…</option></select>
+            <input class="input w-24 uppercase" x-show="otherOpen" x-model="otherSymbol" @keydown.enter="useOther()" @change="useOther()" placeholder="e.g. NU" title="Any US ticker - its daily bars are downloaded the first time a page uses it"></div></div>
         <button class="btn-link text-red-600" @click="reset()">Reset progress</button>
       </div>
       <div x-show="testSymbol" class="text-xs rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2">

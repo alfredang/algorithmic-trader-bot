@@ -246,7 +246,7 @@
   window.agentsPage = function () {
     const q = Q.query();
     return {
-      prov: { providers: [] }, roles: { roles: [], taxonomy: {}, risks: [], systems: [] }, runs: [], run: null, symbols: 'NVDA, AAPL, SPY', provider: '', orchestration: 'native',
+      prov: { providers: [] }, roles: { roles: [], taxonomy: {}, risks: [], systems: [] }, runs: [], run: null, symbols: q.symbols || 'NVDA, AAPL, SPY', provider: '', orchestration: 'native',
       busy: false, limits: {}, ao: {}, memory: [], symSel: null, tab: 'desk', QTS: Q, live: null, FLOW,
       async init() {
         [this.prov, this.roles, this.runs, this.limits, this.ao, this.memory] = await Promise.all([Q.get('/api/agents/providers'), Q.get('/api/agents/roles'),
