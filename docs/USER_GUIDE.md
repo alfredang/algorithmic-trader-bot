@@ -221,7 +221,7 @@ making* it shows spread captured, inventory P&L and inventory.
 
 ---
 
-## 6. Research: strategy search, walk-forward, A/B test, regimes, diagnostics
+## 6. Research: hypothesis test, strategy search, walk-forward, ML models, regimes, A/B test, pairs, diagnostics
 
 **Hypothesis test (Lab 04).** Write H1 and H0 first. Then pick a signal (losing streak, RSI below a level, close below an
 SMA or the lower band, gap down), a horizon, alpha and the minimum edge. Read:
@@ -244,10 +244,18 @@ SMA or the lower band, gap down), a horizon, alpha and the minimum edge. Read:
 
 ![Grid](screenshots/research_grid.png)
 
-**Walk-forward.** For each window the app chooses parameters on the training window and applies them to the next unseen
+**Walk-forward (Lab 10).** For each window the app chooses parameters on the training window and applies them to the next unseen
 window. The result is a stitched out-of-sample equity curve and the parameters chosen per window.
 
 ![Walk-forward](screenshots/research_walkforward.png)
+
+**ML models (Lab 11)** shows walk-forward accuracy, AUC, feature importance and the net-of-cost backtest for each model.
+
+**Regimes (Lab 12).** PCA explained variance and loadings (PC1 ≈ the market). The K-means regime profile, a walk-forward
+regime timeline (refitted on past data only), and gated vs ungated performance: the signal is forced flat in the stress
+regime.
+
+![Regimes](screenshots/research_regime.png)
 
 **A/B test (Lab 13).** Variants A and B run on the same days with the same costs. The page shows a Welch t-test, a paired
 t-test on A − B, and a block-bootstrap 95% CI of the Sharpe difference. **The app rejects H0 only if the paired test and the
@@ -255,11 +263,7 @@ CI agree.** The multiple-testing note (Bonferroni) reminds you how many variants
 
 ![A/B test](screenshots/research_abtest.png)
 
-**Regimes (Lab 12).** PCA explained variance and loadings (PC1 ≈ the market). The K-means regime profile, a walk-forward
-regime timeline (refitted on past data only), and gated vs ungated performance: the signal is forced flat in the stress
-regime.
-
-![Regimes](screenshots/research_regime.png)
+**Pairs screen (Lab 14)** compares correlation with the Engle-Granger ADF t-statistic, the hedge ratio and the half-life.
 
 **Diagnostics (Lab 18).** Five checks, each marked PASS / WARN / FAIL with evidence, and a verdict (BLOCK or CLEAR for paper
 trading):
@@ -275,8 +279,6 @@ Builder and re-run.
 
 ![Diagnostics](screenshots/research_diagnostics.png)
 
-**Pairs screen (Lab 14)** compares correlation with the Engle-Granger ADF t-statistic, the hedge ratio and the half-life.
-**ML models (Lab 11)** shows walk-forward accuracy, AUC, feature importance and the net-of-cost backtest for each model.
 **Execution algos** compares TWAP, VWAP and POV on one session.
 
 ---

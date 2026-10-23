@@ -32,7 +32,7 @@
     </div>
     <div class="card space-y-3">
       <div class="card-title">Fetch / refresh data</div>
-      <div><label class="label">Symbol</label><input class="input" x-model="fetchForm.symbol" placeholder="e.g. AAPL"></div>
+      <div><label class="label">Symbol</label><input list="qts-symbols" class="input" x-model="fetchForm.symbol" placeholder="e.g. AAPL"></div>
       <div><label class="label">Source</label><select class="input" x-model="fetchForm.source"><option value="auto">auto (Alpaca if keys, else demo, else yfinance)</option>
         <template x-for="s in sources" :key="s.name"><option :value="s.name" x-text="s.label + (s.available ? '' : ' - not configured')" :disabled="!s.available"></option></template></select></div>
       <div class="grid grid-cols-2 gap-2"><div><label class="label">Timeframe</label><select class="input" x-model="fetchForm.timeframe"><option>1Day</option><option>1Hour</option></select></div>

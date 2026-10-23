@@ -7,7 +7,7 @@
         <template x-for="g in groups()" :key="g[0]"><optgroup :label="g[0]"><template x-for="s in g[1]" :key="s.key"><option :value="s.key" x-text="s.name" :selected="s.key===key"></option></template></optgroup></template>
       </select>
       <p class="text-xs muted" x-show="desc" x-text="desc && desc.summary"></p>
-      <div><label class="label">Symbols <span class="qmark" title="One symbol for single-asset strategies; several for multi-asset (cross-sectional momentum, pairs)">?</span></label><input class="input" x-model="symbols"></div>
+      <div><label class="label">Symbols <span class="qmark" title="One symbol for single-asset strategies; several for multi-asset (cross-sectional momentum, pairs)">?</span></label><input list="qts-symbols" class="input" x-model="symbols"></div>
       <template x-if="desc"><div class="grid grid-cols-2 gap-2">
         <template x-for="p in desc.params_schema" :key="p.name">
           <div :class="p.type==='bool' ? 'col-span-2' : ''">

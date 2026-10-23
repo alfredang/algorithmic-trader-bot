@@ -12,12 +12,12 @@
         h1: 'Mean next-day return after >= 3 consecutive down closes is HIGHER than on all other days',
         h0: 'Mean next-day return after >= 3 consecutive down closes EQUALS the mean on all other days' },
       grid: { strategy_key: q.strategy || 'sma_cross', symbol: q.symbol || 'SPY', split_date: '2021-12-31', costs: 'alpaca_retail', gridText: '' },
-      wf: { strategy_key: q.strategy || 'sma_cross', symbol: 'SPY', train_bars: 756, test_bars: 252 },
-      ab: { a: q.a || 'trend_filter', b: q.b || 'dip_buy', aParams: '{}', bParams: '{}', symbol: 'SPY', alpha: 0.05, tried: 20 },
-      rg: { symbol: 'SPY', clusters: 3, base: 'ema_cross' },
-      dg: { strategy_key: q.strategy || 'custom_lab18_biased_smoothed_momentum', symbol: 'SPY', trials: 76 },
+      wf: { strategy_key: q.strategy || 'sma_cross', symbol: q.symbol || 'SPY', train_bars: 756, test_bars: 252 },
+      ab: { a: q.a || 'trend_filter', b: q.b || 'dip_buy', aParams: '{}', bParams: '{}', symbol: q.symbol || 'SPY', alpha: 0.05, tried: 20 },
+      rg: { symbol: q.symbol || 'SPY', clusters: 3, base: 'ema_cross' },
+      dg: { strategy_key: q.strategy || 'custom_lab18_biased_smoothed_momentum', symbol: q.symbol || 'SPY', trials: 76 },
       pr: { pairs: 'KO/PEP, JPM/BAC, XLF/JPM, SPY/QQQ, GLD/TLT', formation_end: '2022-12-31' },
-      ml: { symbol: 'SPY', threshold: 0.55 }, ex: { symbol: 'SPY', day: '', side: 'buy', qty: 50000, participation: 0.1, impact_coef: 0.1 },
+      ml: { symbol: q.symbol || 'SPY', threshold: 0.55 }, ex: { symbol: q.symbol || 'SPY', day: '', side: 'buy', qty: 50000, participation: 0.1, impact_coef: 0.1 },
       kinds: { hypothesis: 'hypothesis', grid: 'grid', walkforward: 'walk_forward', abtest: 'abtest', regime: 'regime', diagnostics: 'diagnostics', pairs: 'pairs', ml: 'ml', execution: 'execution' },
       async init() {
         [this.strategies, this.grids, this.hsignals] = await Promise.all([Q.get('/api/strategies'), Q.get('/api/research/grids'), Q.get('/api/research/hypothesis/signals')]);
@@ -83,7 +83,7 @@
       showNew: q.new === '1', expanded: {}, orderFilter: 'all',
       nb: { name: '', strategy_key: q.strategy || 'ema_cross', symbols: q.symbols || 'SPY', params: {}, schedule: 'every 10s', broker: 'sim', data_mode: 'replay',
         replay_start: '2025-01-02', pct: 0.95, max_position_pct: 0.95, max_order_value: 100000, max_daily_loss_pct: 0.02, long_only: true, extended_hours: true },
-      ticket: { symbol: 'SPY', side: 'buy', qty: 10, type: 'auto', time_in_force: 'day', limit_price: '', stop_price: '', take_profit: '', stop_loss: '', extended_hours: false, order_class: 'simple', account: 'Default paper account', session_override: '' },
+      ticket: { symbol: q.symbol || 'SPY', side: 'buy', qty: 10, type: 'auto', time_in_force: 'day', limit_price: '', stop_price: '', take_profit: '', stop_loss: '', extended_hours: false, order_class: 'simple', account: 'Default paper account', session_override: '' },
       ticketRes: null,
       async init() {
         this.strategies = (await Q.get('/api/strategies')).filter((s) => !['execution', 'market_making'].includes(s.kind));

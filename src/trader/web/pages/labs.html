@@ -6,6 +6,9 @@
           <div class="font-semibold" x-text="course.title || 'Machine Learning 101 for Financial Trading'"></div>
           <div class="text-sm muted">20 hands-on labs, all done in this app with the offline demo data and the simulator broker. Each step opens the right page with the right preset and tells you what to check. Progress is saved for user <b x-text="user"></b> (change it in Settings).</div>
         </div>
+        <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-medium">Test symbol</span>
+          <input class="input w-28" list="qts-symbols" x-model="testSymbol" @change="saveSymbol()" placeholder="lab default" title="Every step's Open button uses this symbol instead of the lab's default (SPY etc.)">
+          <button class="btn-link text-xs" x-show="testSymbol" @click="testSymbol=''; saveSymbol()">Use lab defaults</button></div>
         <div class="w-48"><div class="text-xs muted mb-1">Overall progress <span x-text="overall + '%'"></span></div>
           <div class="h-2 rounded bg-slate-200 dark:bg-slate-700"><div class="h-2 rounded bg-emerald-500" :style="'width:' + overall + '%'"></div></div></div>
       </div>
@@ -35,8 +38,13 @@
         <button class="btn" @click="lab=null; history.replaceState(null,'','#/labs')">← All labs</button>
         <span class="badge badge-info" x-text="'Topic ' + lab.topic"></span>
         <h2 class="text-lg font-semibold" x-text="'Lab ' + String(lab.id).padStart(2,'0') + ' · ' + lab.title"></h2>
-        <button class="btn-link ml-auto text-red-600" @click="reset()">Reset progress</button>
+        <div class="ml-auto"><div class="flex flex-wrap items-center gap-2"><span class="text-sm font-medium">Test symbol</span>
+            <input class="input w-28" list="qts-symbols" x-model="testSymbol" @change="saveSymbol()" placeholder="lab default" title="Every step's Open button uses this symbol instead of the lab's default (SPY etc.)">
+            <button class="btn-link text-xs" x-show="testSymbol" @click="testSymbol=''; saveSymbol()">Use lab defaults</button></div></div>
+        <button class="btn-link text-red-600" @click="reset()">Reset progress</button>
       </div>
+      <div x-show="testSymbol" class="text-xs rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2">
+        Steps open on <b x-text="testSymbol"></b> instead of the lab's default symbol (pair and multi-symbol steps keep theirs). The <b>Check</b> notes were written for the default symbol, so your numbers will differ - compare them with the default run. A symbol that is not stored yet is downloaded on first use (from Alpaca when your keys are connected, otherwise Yahoo Finance); with no internet, only the bundled demo symbols in the list work.</div>
       <div class="card">
         <div class="text-sm"><b>Objective.</b> <span x-text="lab.objective"></span></div>
         <div class="text-sm mt-2" x-show="lab.expected"><b>You'll produce.</b> <span x-text="lab.expected"></span></div>
@@ -50,7 +58,7 @@
             <div class="font-semibold text-sm"><span x-text="(s.index+1) + '. '"></span><span x-text="s.title"></span></div>
             <div class="text-sm mt-1 whitespace-pre-line" x-text="s.instruction"></div>
             <div class="flex flex-wrap items-center gap-2 mt-2">
-              <a x-show="s.app_route" class="btn-primary btn-xs" :href="'#/' + s.app_route" x-text="s.preset ? 'Open: ' + s.preset : 'Open in the app'"></a>
+              <a x-show="s.app_route" class="btn-primary btn-xs" :href="'#/' + routeFor(s)" x-text="s.preset ? 'Open: ' + presetFor(s) : 'Open in the app'"></a>
               <span x-show="s.done" class="text-xs muted" x-text="'done ' + QTS.ago(s.completed_at)"></span>
             </div>
             <div x-show="s.check" class="mt-2 text-xs rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-2"><b>Check:</b> <span x-text="s.check"></span></div>

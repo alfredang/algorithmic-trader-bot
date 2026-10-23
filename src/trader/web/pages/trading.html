@@ -12,7 +12,7 @@
     <div class="grid md:grid-cols-4 gap-3">
       <div><label class="label">Name</label><input class="input" x-model="nb.name"></div>
       <div><label class="label">Strategy</label><select class="input" :value="nb.strategy_key" @change="pickStrategy($event.target.value)"><template x-for="s in strategies" :key="s.key"><option :value="s.key" x-text="s.name" :selected="s.key===nb.strategy_key"></option></template></select></div>
-      <div><label class="label">Symbols</label><input class="input" x-model="nb.symbols"></div>
+      <div><label class="label">Symbols</label><input list="qts-symbols" class="input" x-model="nb.symbols"></div>
       <div><label class="label" title="5-field cron in New York time (35 9 * * 1-5 = 09:35 ET Mon-Fri) or 'every 30s' / 'every 5m'">Schedule <span class="qmark">?</span></label><input class="input" x-model="nb.schedule"></div>
       <div><label class="label">Broker</label><select class="input" x-model="nb.broker"><option value="sim">Built-in simulator</option><option value="alpaca_paper">Alpaca paper (needs keys)</option></select></div>
       <div x-show="nb.broker==='sim'"><label class="label" title="replay: offline forward test, one bundled bar per cycle; live: latest data and the real clock">Data mode <span class="qmark">?</span></label><select class="input" x-model="nb.data_mode"><option value="replay">replay (offline, 1 bar / cycle)</option><option value="live">live (latest data, real clock)</option></select></div>
@@ -120,7 +120,7 @@
     <div class="card space-y-3">
       <div class="card-title">Manual paper order</div>
       <div class="grid grid-cols-3 gap-2">
-        <div><label class="label">Symbol</label><input class="input" x-model="ticket.symbol"></div>
+        <div><label class="label">Symbol</label><input list="qts-symbols" class="input" x-model="ticket.symbol"></div>
         <div><label class="label">Side</label><select class="input" x-model="ticket.side"><option>buy</option><option>sell</option></select></div>
         <div><label class="label">Qty</label><input class="input" type="number" x-model.number="ticket.qty"></div>
         <div><label class="label" title="auto = market in the regular session, extended-hours limit outside it, GTC limit when closed">Type <span class="qmark">?</span></label><select class="input" x-model="ticket.type"><option value="auto">auto (session-aware)</option><option>market</option><option>limit</option><option>stop</option></select></div>

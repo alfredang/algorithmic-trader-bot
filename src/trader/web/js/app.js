@@ -97,9 +97,9 @@ QTS.NAV = [
     { route: 'backtest', label: 'Backtest', icon: 'play' },
     { route: 'research', label: 'Research', icon: 'flask', children: [
       { route: 'research/hypothesis', label: 'Hypothesis test' }, { route: 'research/grid', label: 'Strategy search' },
-      { route: 'research/walkforward', label: 'Walk-forward' }, { route: 'research/abtest', label: 'A/B test' },
-      { route: 'research/regime', label: 'Regimes' }, { route: 'research/diagnostics', label: 'Diagnostics' },
-      { route: 'research/pairs', label: 'Pairs screen' }, { route: 'research/ml', label: 'ML models' },
+      { route: 'research/walkforward', label: 'Walk-forward' }, { route: 'research/ml', label: 'ML models' },
+      { route: 'research/regime', label: 'Regimes' }, { route: 'research/abtest', label: 'A/B test' },
+      { route: 'research/pairs', label: 'Pairs screen' }, { route: 'research/diagnostics', label: 'Diagnostics' },
       { route: 'research/execution', label: 'Execution algos' } ] } ] },
   { label: 'Automation', items: [
     { route: 'trading', label: 'Paper Trading', icon: 'bot', badge: 'openOrders' },
@@ -145,7 +145,7 @@ QTS.offAll = function () { QTS.listeners = {}; };
 QTS.emitLocal = function (kind, data) { [...(QTS.listeners[kind] || []), ...(QTS.listeners['*'] || [])].forEach((f) => { try { f(data, kind); } catch (e) { console.error(e); } }); };
 
 document.addEventListener('alpine:init', () => {
-  Alpine.store('app', { toasts: [], defs: {}, route: QTS.parseHash(), status: {}, counts: { openOrders: 0, pendingApprovals: 0 } });
+  Alpine.store('app', { toasts: [], defs: {}, route: QTS.parseHash(), status: {}, counts: { openOrders: 0, pendingApprovals: 0 }, symbols: [] });
   window.shell = function () {
     return {
       nav: QTS.NAV, sidebarOpen: false, dark: document.documentElement.classList.contains('dark'),
@@ -158,6 +158,7 @@ document.addEventListener('alpine:init', () => {
         window.addEventListener('hashchange', () => this.navigate());
         try { Alpine.store('app').defs = await QTS.get('/api/metrics/definitions', true); } catch (e) { /* offline */ }
         await this.refreshStatus();
+        this.loadSymbols();
         this.navigate();
         this.connect();
         this.tickClock(); setInterval(() => this.tickClock(), 30000);
@@ -167,6 +168,10 @@ document.addEventListener('alpine:init', () => {
       async refreshStatus() {
         try { this.status = await QTS.get('/api/system/status', true); Alpine.store('app').status = this.status; } catch (e) { /* server down */ }
         try { this.kill = (await QTS.get('/api/kill-switch', true)).on; } catch (e) { /* */ }
+      },
+      // symbols with stored bars feed the <datalist id="qts-symbols"> behind every symbol box
+      async loadSymbols() {
+        try { Alpine.store('app').symbols = (await QTS.get('/api/instruments', true)).map((i) => i.symbol).sort(); } catch (e) { /* server down */ }
       },
       async refreshCounts() {
         try {
@@ -207,6 +212,7 @@ document.addEventListener('alpine:init', () => {
         this.live = true;
         let d; try { d = JSON.parse(m.data); } catch (e) { return; }
         if (d.kind === 'kill_switch') this.kill = !!(d.payload || {}).on;
+        if (d.kind === 'data.ingested') this.loadSymbols();
         if (d.kind && d.kind.startsWith('order.')) this.refreshCounts();
         if (d.kind && d.kind.startsWith('agents.')) this.refreshCounts();
         if (d.kind === 'order.filled') QTS.toast(`Filled: ${d.payload.side.toUpperCase()} ${d.payload.qty} ${d.payload.symbol} @ ${QTS.num(d.payload.price)}`, 'ok', 3000);

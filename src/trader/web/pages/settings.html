@@ -4,7 +4,7 @@
     <div class="grid grid-cols-2 gap-3">
       <div><label class="label">Theme</label><select class="input" x-model="prefs.theme"><option>system</option><option>light</option><option>dark</option></select></div>
       <div><label class="label">Your name (Course Labs progress)</label><input class="input" x-model="prefs.user"></div>
-      <div><label class="label">Default symbol</label><input class="input" x-model="prefs.default_symbol"></div>
+      <div><label class="label">Default symbol</label><input list="qts-symbols" class="input" x-model="prefs.default_symbol"></div>
       <div><label class="label">Default cost model</label><select class="input" x-model="prefs.default_cost_preset"><option>alpaca_retail</option><option>zero</option><option>per_share_broker</option><option>high_cost</option></select></div>
       <div><label class="label">Desk timezone</label><input class="input" x-model="prefs.desk_timezone"></div>
     </div>

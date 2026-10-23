@@ -8,7 +8,7 @@
         <template x-for="e in examples" :key="e"><button type="button" class="btn btn-xs" @click="idea = e" x-text="e.length > 60 ? e.slice(0, 58) + '…' : e" :title="e"></button></template>
       </div>
       <div class="flex flex-wrap items-end gap-3">
-        <div><label class="label">Test on</label><input class="input w-28" x-model="symbols" title="symbol to test the idea on"></div>
+        <div><label class="label">Test on</label><input list="qts-symbols" class="input w-28" x-model="symbols" title="symbol to test the idea on"></div>
         <button class="btn-primary" @click="fromIdea()" :disabled="ideaBusy || idea.trim().length < 8"><span x-show="ideaBusy" class="spinner"></span>Turn my idea into a strategy</button>
         <span class="text-xs muted">Uses your connected AI (see Integrations); without one, the built-in interpreter handles the common strategy families.</span>
       </div>
@@ -37,7 +37,7 @@
     <div x-show="showCode" class="space-y-3">
     <div class="card flex flex-wrap items-end gap-3">
       <div><label class="label">Start from a template</label><select class="input" @change="useTemplate($event.target.value)"><template x-for="t in templates" :key="t.key"><option :value="t.key" x-text="t.title"></option></template></select></div>
-      <div><label class="label">Test symbols</label><input class="input w-40" x-model="symbols" title="one symbol for single-asset strategies, several for multi_asset = True"></div>
+      <div><label class="label">Test symbols</label><input list="qts-symbols" class="input w-40" x-model="symbols" title="one symbol for single-asset strategies, several for multi_asset = True"></div>
       <div class="flex-1"></div>
       <button class="btn" @click="validate()" :disabled="busy"><span x-show="busy" class="spinner"></span>Validate & test-run</button>
       <button class="btn-primary" @click="save()" :disabled="busy" x-text="key ? 'Save changes' : 'Save as new strategy'"></button>

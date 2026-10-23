@@ -61,6 +61,9 @@ course simulator:
   course sample runs the labs refer to are protected and always listed.
 - **TSLA in the demo data** (13 symbols), with EMA crossover and buy-and-hold samples on AAPL and TSLA, and a date range
   (**From / To**) on the Data chart.
+- **Labs on your own symbol.** Set a **Test symbol** on the Course Labs page and every step's **Open** button uses it instead
+  of the lab default (pair and multi-symbol steps keep theirs). Every symbol box suggests the symbols you have data for, and
+  the Research tabs follow the lab order (hypothesis, search, walk-forward, ML, regimes, A/B, pairs, diagnostics).
 - The v1 code is kept, unchanged, in [`legacy/`](legacy/) for reference. It is the only place Gemini still appears.
 
 ## Features mapped to the course
@@ -71,7 +74,7 @@ course simulator:
 | **2. Indicators, strategies, metrics, TradingView & Alpaca** | **Chart:** TradingView Lightweight Charts with SMA/EMA, Bollinger, Donchian, VWAP, RSI, MACD, ATR, stochastic and OBV. **Strategy library:** buy-and-hold, SMA/EMA crossover, MACD, RSI, RSI(2), Bollinger reversion and breakout, Donchian, time-series and cross-sectional momentum, dip-buy, pairs, regime-filtered, ML (logistic / random forest / XGBoost), sentiment, VWAP/TWAP/POV execution, market making and the agentic desk, grouped by strategy type in lab order and filterable by lab. Each has course explanations and classification tags. **Pine Script v6 export.** **Order ticket:** market, limit, stop, bracket, time-in-force and 24/5 extended hours. **Analytics:** every course metric. |
 | **3. ML, statistics, A/B testing** | **Research:** grid search with in-sample / out-of-sample decay heatmap and robust region, walk-forward optimisation, ML classifiers with walk-forward validation (AUC, feature importance), PCA + walk-forward K-means regimes with a gate, A/B test (Welch, paired, block-bootstrap Sharpe CI, decision, multiple-testing caution), and an Engle-Granger cointegration screen with a hedged pairs backtest. |
 | **4. End-to-end pipeline** - backtest with costs, forward test, diagnostics, reporting | **Backtest engine:** next-bar execution (no look-ahead), commission per share / bps / minimum, spread, slippage, SEC/FINRA fees on sells, borrow, long/short, multi-asset, position sizing (percent, fixed, vol-target, ATR), stop-loss / take-profit, gross vs net and break-even cost. **Paper trading bots:** scheduled, with risk checks and kill switches, an offline replay mode and live mode (Alpaca 24/5). **TradingView webhook.** **Diagnostics:** look-ahead, cost drag, overfitting, survivorship. **Tearsheet** PDF/CSV, backtest vs forward comparison, and a searchable **run history** (compare 2-5 runs, delete your own; course samples are protected). **Pipeline Map** of all 14 stages. |
-| **Course labs 1-20** | **Course Labs** page, driven by [`labs/course_labs.yaml`](labs/course_labs.yaml). It gives step-by-step checklists with deep links and presets, saves progress per user, and offers optional "under the hood" Python. |
+| **Course labs 1-20** | **Course Labs** page, driven by [`labs/course_labs.yaml`](labs/course_labs.yaml). It gives step-by-step checklists with deep links and presets, saves progress per user, lets you run every step on a **test symbol** of your choice, and offers optional "under the hood" Python. |
 
 More highlights:
 

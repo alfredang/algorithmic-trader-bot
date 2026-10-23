@@ -23,7 +23,7 @@
     <div class="space-y-3">
       <div class="card space-y-2">
         <div class="card-title">Run the desk</div>
-        <div><label class="label">Symbols</label><input class="input" x-model="symbols"></div>
+        <div><label class="label">Symbols</label><input list="qts-symbols" class="input" x-model="symbols"></div>
         <div><label class="label">Provider</label><select class="input" x-model="provider"><option value="">server default (AI_PROVIDER)</option><option value="auto">auto (subscription login first)</option><option value="rules">rule-based (offline)</option><option value="codex">OpenAI Codex (ChatGPT login)</option><option value="claude">Claude Agent SDK (API key)</option><option value="openai">OpenAI Agents SDK (API key)</option></select></div>
         <div><label class="label" title="native: the SDK's own multi-agent features (Claude subagents / OpenAI agents-as-tools) for the analysts; pipeline: one agent call per role">Orchestration <span class="qmark">?</span></label><select class="input" x-model="orchestration"><option value="native">native SDK multi-agent</option><option value="pipeline">pipeline (one call per agent)</option></select></div>
         <button class="btn-primary w-full justify-center" @click="go()" :disabled="busy"><span x-show="busy" class="spinner"></span><span x-text="busy ? 'Agents are working…' : 'Run multi-agent analysis'"></span></button>

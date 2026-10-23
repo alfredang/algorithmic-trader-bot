@@ -1,6 +1,6 @@
 <div x-data="researchPage()" class="space-y-4">
   <div class="tabs">
-    <template x-for="t in [['hypothesis','Hypothesis test'],['grid','Strategy search'],['walkforward','Walk-forward'],['abtest','A/B test'],['regime','Regimes'],['diagnostics','Diagnostics'],['pairs','Pairs screen'],['ml','ML models'],['execution','Execution algos']]">
+    <template x-for="t in [['hypothesis','Hypothesis test'],['grid','Strategy search'],['walkforward','Walk-forward'],['ml','ML models'],['regime','Regimes'],['abtest','A/B test'],['pairs','Pairs screen'],['diagnostics','Diagnostics'],['execution','Execution algos']]">
       <a class="tab" :class="sub===t[0] && 'active'" :href="'#/research/' + t[0]" x-text="t[1]"></a></template>
   </div>
   <div class="grid xl:grid-cols-4 gap-4">
@@ -9,7 +9,7 @@
       <div class="card space-y-2" x-show="sub==='hypothesis'">
         <div class="card-title">Hypothesis card</div>
         <p class="text-xs muted">Write H0 and H1 <b>before</b> looking at results (course Topic 1.6). The test compares the forward return on signal days with all other days.</p>
-        <div><label class="label">Instrument</label><input class="input" x-model="hyp.symbol"></div>
+        <div><label class="label">Instrument</label><input class="input" x-model="hyp.symbol" list="qts-symbols"></div>
         <div><label class="label">Signal (known at the close of day t)</label><select class="input" :value="hyp.type" @change="setHypType($event.target.value)"><template x-for="(v,k) in hsignals"><option :value="k" x-text="k.replaceAll('_',' ')" :selected="k===hyp.type"></option></template></select></div>
         <div class="grid grid-cols-2 gap-2"><template x-for="(v,k) in hyp.params"><div><label class="label" x-text="k"></label><input class="input" type="number" step="any" x-model.number="hyp.params[k]"></div></template></div>
         <div class="grid grid-cols-3 gap-2"><div><label class="label">Horizon (days)</label><input class="input" type="number" x-model.number="hyp.horizon"></div><div><label class="label">alpha</label><input class="input" type="number" step="0.01" x-model.number="hyp.alpha"></div><div><label class="label">Min edge bps</label><input class="input" type="number" x-model.number="hyp.min_edge_bps"></div></div>
@@ -20,7 +20,7 @@
       <div class="card space-y-2" x-show="sub==='grid'">
         <div class="card-title">Parameter grid search</div>
         <div><label class="label">Strategy</label><select class="input" x-model="grid.strategy_key" @change="setGridText()"><template x-for="s in signalStrategies"><option :value="s.key" x-text="s.name"></option></template></select></div>
-        <div><label class="label">Symbol</label><input class="input" x-model="grid.symbol"></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="grid.symbol" list="qts-symbols"></div>
         <div><label class="label">In-sample ends (out-of-sample starts the next day)</label><input class="input" type="date" x-model="grid.split_date"></div>
         <div><label class="label">Grid (JSON: parameter → values)</label><textarea class="input mono" rows="4" x-model="grid.gridText"></textarea></div>
         <div><label class="label">Costs</label><select class="input" x-model="grid.costs"><option>alpaca_retail</option><option>zero</option><option>per_share_broker</option><option>high_cost</option></select></div>
@@ -30,7 +30,7 @@
         <div class="card-title">Walk-forward optimisation</div>
         <p class="text-xs muted">Choose the best parameters on each training window, apply them to the next unseen window, roll forward and stitch the test windows together.</p>
         <div><label class="label">Strategy (default grid)</label><select class="input" x-model="wf.strategy_key"><template x-for="s in signalStrategies.filter(s => grids[s.key])"><option :value="s.key" x-text="s.name"></option></template></select></div>
-        <div><label class="label">Symbol</label><input class="input" x-model="wf.symbol"></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="wf.symbol" list="qts-symbols"></div>
         <div class="grid grid-cols-2 gap-2"><div><label class="label">Train bars</label><input class="input" type="number" x-model.number="wf.train_bars"></div><div><label class="label">Test bars</label><input class="input" type="number" x-model.number="wf.test_bars"></div></div>
         <button class="btn-primary w-full justify-center" @click="runWF()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run walk-forward</button>
       </div>
@@ -41,12 +41,12 @@
           <input class="input mono mt-1 text-xs" x-model="ab.aParams" placeholder='{"fast": 20, "slow": 50}'></div>
         <div><label class="label">Variant B</label><select class="input" x-model="ab.b"><template x-for="s in strategies.filter(s => !['execution','market_making'].includes(s.kind))"><option :value="s.key" x-text="s.name"></option></template></select>
           <input class="input mono mt-1 text-xs" x-model="ab.bParams" placeholder="{}"></div>
-        <div class="grid grid-cols-3 gap-2"><div><label class="label">Symbol</label><input class="input" x-model="ab.symbol"></div><div><label class="label">alpha</label><input class="input" type="number" step="0.01" x-model.number="ab.alpha"></div><div><label class="label" title="number of variants you tried - for the Bonferroni caution">Variants tried</label><input class="input" type="number" x-model.number="ab.tried"></div></div>
+        <div class="grid grid-cols-3 gap-2"><div><label class="label">Symbol</label><input class="input" x-model="ab.symbol" list="qts-symbols"></div><div><label class="label">alpha</label><input class="input" type="number" step="0.01" x-model.number="ab.alpha"></div><div><label class="label" title="number of variants you tried - for the Bonferroni caution">Variants tried</label><input class="input" type="number" x-model.number="ab.tried"></div></div>
         <button class="btn-primary w-full justify-center" @click="runAB()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run A/B test</button>
       </div>
       <div class="card space-y-2" x-show="sub==='regime'">
         <div class="card-title">Market regimes (PCA + K-means)</div>
-        <div><label class="label">Symbol to gate</label><input class="input" x-model="rg.symbol"></div>
+        <div><label class="label">Symbol to gate</label><input class="input" x-model="rg.symbol" list="qts-symbols"></div>
         <div><label class="label">Clusters (k)</label><input class="input" type="number" min="2" max="5" x-model.number="rg.clusters"></div>
         <div><label class="label">Signal to gate</label><select class="input" x-model="rg.base"><template x-for="k in ['ema_cross','sma_cross','trend_filter','ts_momentum','donchian_breakout','macd_cross','dip_buy']"><option x-text="k"></option></template></select></div>
         <button class="btn-primary w-full justify-center" @click="runRegime()" :disabled="busy"><span x-show="busy" class="spinner"></span>Analyse regimes</button>
@@ -55,7 +55,7 @@
         <div class="card-title">Bias diagnostics</div>
         <p class="text-xs muted">Look-ahead (features and execution), cost drag, overfitting against skill-free random strategies, survivorship. Try the seeded <b>Lab 18 biased exhibit</b>.</p>
         <div><label class="label">Strategy</label><select class="input" x-model="dg.strategy_key"><template x-for="s in signalStrategies"><option :value="s.key" x-text="s.name"></option></template></select></div>
-        <div><label class="label">Symbol</label><input class="input" x-model="dg.symbol"></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="dg.symbol" list="qts-symbols"></div>
         <div><label class="label">Parameter sets tried</label><input class="input" type="number" x-model.number="dg.trials"></div>
         <button class="btn-primary w-full justify-center" @click="runDiag()" :disabled="busy"><span x-show="busy" class="spinner"></span>Run diagnostics</button>
       </div>
@@ -68,14 +68,14 @@
       </div>
       <div class="card space-y-2" x-show="sub==='ml'">
         <div class="card-title">ML direction classifiers</div>
-        <div><label class="label">Symbol</label><input class="input" x-model="ml.symbol"></div>
+        <div><label class="label">Symbol</label><input class="input" x-model="ml.symbol" list="qts-symbols"></div>
         <div><label class="label">Long when P(up) &gt;</label><input class="input" type="number" step="0.01" x-model.number="ml.threshold"></div>
         <button class="btn-primary w-full justify-center" @click="runML()" :disabled="busy"><span x-show="busy" class="spinner"></span>Train walk-forward</button>
         <p class="help">Logistic regression, random forest and XGBoost, refitted every 126 bars on the past only.</p>
       </div>
       <div class="card space-y-2" x-show="sub==='execution'">
         <div class="card-title">TWAP / VWAP / POV</div>
-        <div class="grid grid-cols-2 gap-2"><div><label class="label">Symbol (1Hour)</label><input class="input" x-model="ex.symbol"></div><div><label class="label">Session date</label><input class="input" type="date" x-model="ex.day"></div></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="label">Symbol (1Hour)</label><input class="input" x-model="ex.symbol" list="qts-symbols"></div><div><label class="label">Session date</label><input class="input" type="date" x-model="ex.day"></div></div>
         <div class="grid grid-cols-2 gap-2"><div><label class="label">Side</label><select class="input" x-model="ex.side"><option>buy</option><option>sell</option></select></div><div><label class="label">Parent qty</label><input class="input" type="number" x-model.number="ex.qty"></div></div>
         <div class="grid grid-cols-2 gap-2"><div><label class="label">POV rate</label><input class="input" type="number" step="0.01" x-model.number="ex.participation"></div><div><label class="label">Impact coef</label><input class="input" type="number" step="0.01" x-model.number="ex.impact_coef"></div></div>
         <button class="btn-primary w-full justify-center" @click="runExec()" :disabled="busy"><span x-show="busy" class="spinner"></span>Simulate</button>
@@ -199,7 +199,9 @@
               <tbody><template x-for="m in res.result.models"><tr><td class="font-semibold" x-text="m.model"></td><td class="num" x-text="QTS.pct(m.accuracy,1)"></td><td class="num" x-text="QTS.pct(m.precision,1)"></td><td class="num" x-text="QTS.num(m.auc,3)"></td><td class="num" x-text="QTS.pct(m.base_rate,1)"></td><td class="num" x-text="QTS.pct(m.backtest.cagr)"></td><td class="num" x-text="QTS.num(m.backtest.sharpe)"></td><td class="text-xs" x-text="m.verdict"></td></tr></template>
                 <tr><td class="muted">Buy & hold (same window)</td><td colspan="4"></td><td class="num" x-text="QTS.pct(res.result.bh.cagr)"></td><td class="num" x-text="QTS.num(res.result.bh.sharpe)"></td><td></td></tr></tbody></table>
               <p class="text-xs muted mt-2">Always predicting 'up' scores the base rate and AUC 0.5. Judge the model by the net-of-cost strategy, not by accuracy alone.</p></div>
-            <div class="card" style="height:340px"><canvas x-ref="c1"></canvas></div>
+            <div class="card"><div class="card-title">Random-forest feature importance</div>
+              <div style="height:320px"><canvas x-ref="c1"></canvas></div>
+              <p class="text-xs muted mt-2">How much each input was used by the forest's splits (the bars sum to 1; an even share is 1/14 = 0.07). Importance shows what the model looked at, not that it predicts - read it next to the AUC.</p></div>
           </div></template>
 
           <!-- execution -->
