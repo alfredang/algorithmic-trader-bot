@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from trader.agents import desk
+from trader.agents import desk, live
 from trader.agents.providers import resolve, status_all
 from trader.agents.roles import DEFAULT_LIMITS, ROLE_ORDER, ROLES, TAXONOMY
 from trader.api.schemas import AgentRunRequest, AlwaysOnConfig
@@ -54,9 +54,22 @@ def set_limits(body: dict = Body(...), db: Session = Depends(get_db)):
 def run(req: AgentRunRequest, db: Session = Depends(get_db)):
     if not req.symbols:
         raise HTTPException(400, "give at least one symbol")
-    r = desk.run_desk(db, req.symbols, req.provider, orchestration=req.orchestration)
+    try:
+        r = desk.run_desk(db, req.symbols, req.provider, orchestration=req.orchestration, live_id=req.live_id)
+    except Exception:
+        live.finish(req.live_id, None, "error")
+        raise
     db.commit()
     return desk.run_dict(r)
+
+
+@router.get("/live/{live_id}")
+def live_progress(live_id: str):
+    """Agent-by-agent status of a desk run while it is still running (polled by the AI Agents page)."""
+    p = live.get(live_id)
+    if p is None:
+        raise HTTPException(404, "no live desk run with that id")
+    return p
 
 
 @router.get("/runs")
@@ -108,7 +121,7 @@ def put_always_on(cfg: AlwaysOnConfig, db: Session = Depends(get_db)):
 
 
 @router.post("/always-on/run-now")
-def always_on_now(db: Session = Depends(get_db)):
+def always_on_now(live_id: str | None = None, db: Session = Depends(get_db)):
     cfg = always_on_config(db)
     from trader.data import service as data
     for s in cfg["symbols"]:
@@ -116,7 +129,11 @@ def always_on_now(db: Session = Depends(get_db)):
             data.fetch_news(db, s)
         except Exception:
             pass
-    r = desk.run_desk(db, cfg["symbols"], cfg.get("provider"), mode="always_on")
+    try:
+        r = desk.run_desk(db, cfg["symbols"], cfg.get("provider"), mode="always_on", live_id=live_id)
+    except Exception:
+        live.finish(live_id, None, "error")
+        raise
     db.commit()
     return desk.run_dict(r)
 

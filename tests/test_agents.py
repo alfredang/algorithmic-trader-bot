@@ -107,3 +107,27 @@ def test_claude_provider_never_uses_subscription_login(monkeypatch):
     from trader.agents.providers import _claude_env
     assert set(_claude_env()) <= {"ANTHROPIC_API_KEY", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "AWS_REGION",
                                   "ANTHROPIC_VERTEX_PROJECT_ID", "CLOUD_ML_REGION"}
+
+
+def test_live_progress_follows_every_agent(db):
+    from trader.agents import live
+    run = desk.run_desk(db, ["NVDA", "SPY"], provider=MockLLM(native=True, fail={"trader"}), orchestration="native",
+                        auto_approve=False, live_id="pytest-live")
+    p = live.get("pytest-live")
+    assert p["status"] == run.status and p["run_id"] == run.id and p["current"] is None
+    for sym in ("NVDA", "SPY"):
+        nodes = p["nodes"][sym]
+        assert set(nodes) == set(ROLE_ORDER) | {"risk_limits"}
+        assert all(n["state"] in ("done", "fallback") for n in nodes.values())
+        assert nodes["trader"]["state"] == "fallback"                        # the LLM failed, rules answered
+        assert nodes["bull_researcher"]["round"] == 2
+        assert nodes["risk_limits"]["brain"] == "deterministic code"
+    assert live.get("no-such-run") is None
+
+
+def test_live_endpoint(client):
+    r = client.post("/api/agents/run", json={"symbols": ["SPY"], "provider": "rules", "live_id": "api-live"})
+    assert r.status_code == 200
+    p = client.get("/api/agents/live/api-live").json()
+    assert p["run_id"] == r.json()["id"] and p["nodes"]["SPY"]["portfolio_manager"]["state"] == "done"
+    assert client.get("/api/agents/live/unknown").status_code == 404

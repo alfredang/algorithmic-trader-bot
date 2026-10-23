@@ -84,6 +84,9 @@ More highlights:
   - **Hard risk limits run in code, outside the LLM.** No model output can loosen them.
   - **A human must approve** every proposal before any paper order is sent. Auto-approve inside the limits is optional.
   - Every agent's output is saved in a **decision trace**.
+  - The **Agent flow** view shows the desk as a live pipeline, one row per symbol: analysts → bull/bear debate → trader
+    → risk manager → hard limits (code) → portfolio manager → human approval. Each agent turns from waiting to working
+    to done (or rule fallback) as the run progresses, with its score or decision. Finished runs are redrawn from their trace.
   - **Always-on agent mode** runs the desk around the clock on a schedule and writes memory.
 - **Custom strategies.** Write Python in the browser (CodeMirror) against a documented plugin API, starting from templates
   or a clone of a built-in strategy. The code is validated, test-run in a restricted subprocess, and checked for look-ahead.
@@ -364,6 +367,7 @@ class TrendWithRSIFilter(Strategy):
 | ![Regimes](docs/screenshots/research_regime.png) Regimes | ![Trading](docs/screenshots/trading.png) Paper-trading bot |
 | ![Analytics](docs/screenshots/analytics.png) Analytics | ![Agents](docs/screenshots/agents.png) Multi-agent desk (Codex run) |
 | ![Integrations](docs/screenshots/integrations.png) Integrations | ![Dark mode](docs/screenshots/backtest_dark.png) Dark mode |
+| ![Agent flow](docs/screenshots/agents_flow.png) Agent flow (per-agent status) | |
 
 There are lab-by-lab screenshots in [`docs/screenshots/labs/`](docs/screenshots/labs/).
 
@@ -372,7 +376,7 @@ There are lab-by-lab screenshots in [`docs/screenshots/labs/`](docs/screenshots/
 ```bash
 uv sync                   # dev tools (pytest, ruff) are in the default dev group
 uv run pytest             # offline suite - indicators, metrics, backtest, costs, pairs, A/B, risk, broker, strategies,
-                          #   multi-agent orchestration (LLM mocked), API endpoints, in-app keys, Equibles (HTTP mocked),
+                          #   multi-agent orchestration and live agent progress (LLM mocked), API endpoints, in-app keys, Equibles (HTTP mocked),
                           #   migrations
 uv run ruff check src tests alembic
 uv run alembic revision --autogenerate -m "..."   # after changing models

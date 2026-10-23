@@ -84,6 +84,7 @@ class AgentRunRequest(BaseModel):
     symbols: list[str] = Field(default_factory=lambda: ["NVDA", "AAPL", "SPY"])
     provider: str | None = Field(None, description="auto | rules | codex | claude | openai")
     orchestration: str = Field("native", description="native (SDK multi-agent) | pipeline (one call per agent)")
+    live_id: str | None = Field(None, max_length=64, description="client id to follow the run live at /api/agents/live/{live_id}")
 
 
 class AlwaysOnConfig(BaseModel):

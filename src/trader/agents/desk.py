@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from trader.agents import live
 from trader.agents import rules as RULES
 from trader.agents.providers import Provider, RulesProvider, resolve
 from trader.agents.roles import DEFAULT_LIMITS, ROLE_ORDER, ROLES
@@ -34,18 +35,18 @@ def desk_limits(db: Session) -> dict:
 
 
 def _call(provider: Provider, role_key: str, ctx: dict, reports: dict, trace: list, round_no: int = 1,
-          native_out: dict | None = None) -> dict:
-    out, entry = _run_one(provider, role_key, ctx, reports, round_no, native_out)
+          native_out: dict | None = None, progress: live.Progress | None = None) -> dict:
+    out, entry = _run_one(provider, role_key, ctx, reports, round_no, native_out, progress)
     trace.append(entry)
     return out
 
 
 def _call_parallel(provider: Provider, keys: list[str], ctx: dict, reports: dict, trace: list, round_no: int = 1,
-                   native_out: dict | None = None) -> dict[str, dict]:
+                   native_out: dict | None = None, progress: live.Progress | None = None) -> dict[str, dict]:
     """Run independent agents concurrently (each sees the same reports); trace entries keep the role order."""
     snapshot = dict(reports)
     with ThreadPoolExecutor(max_workers=len(keys)) as pool:
-        futs = {k: pool.submit(_run_one, provider, k, ctx, snapshot, round_no, native_out) for k in keys}
+        futs = {k: pool.submit(_run_one, provider, k, ctx, snapshot, round_no, native_out, progress) for k in keys}
         results = {k: f.result() for k, f in futs.items()}
     for k in keys:
         trace.append(results[k][1])
@@ -53,8 +54,10 @@ def _call_parallel(provider: Provider, keys: list[str], ctx: dict, reports: dict
 
 
 def _run_one(provider: Provider, role_key: str, ctx: dict, reports: dict, round_no: int = 1,
-             native_out: dict | None = None) -> tuple[dict, dict]:
+             native_out: dict | None = None, progress: live.Progress | None = None) -> tuple[dict, dict]:
     role = ROLES[role_key]
+    if progress:
+        progress.start(ctx["symbol"], role_key, round_no)
     t0 = time.time()
     brain, err = provider.name, None
     if native_out is not None and role_key in native_out:
@@ -70,9 +73,12 @@ def _run_one(provider: Provider, role_key: str, ctx: dict, reports: dict, round_
             out = RULES.BRAINS[role_key](ctx, reports)
             brain = "rules (fallback)"
     out = _sanitize(role_key, out, ctx, reports)
-    return out, {"symbol": ctx["symbol"], "agent": role_key, "title": role.title, "stage": role.stage,
-                 "round": round_no, "brain": brain, "model": provider.model or None, "tools": list(role.tools),
-                 "output": jsonable(out), "ms": int((time.time() - t0) * 1000), "error": err}
+    entry = {"symbol": ctx["symbol"], "agent": role_key, "title": role.title, "stage": role.stage,
+             "round": round_no, "brain": brain, "model": provider.model or None, "tools": list(role.tools),
+             "output": jsonable(out), "ms": int((time.time() - t0) * 1000), "error": err}
+    if progress:
+        progress.done(ctx["symbol"], role_key, entry)
+    return out, entry
 
 
 def _num(x, default=0.0, lo=None, hi=None) -> float:
@@ -150,10 +156,14 @@ def hard_limits(ctx: dict, reports: dict, limits: dict) -> dict:
             "price": t["close"], "notes": notes}
 
 
-def analyse_symbol(provider: Provider, ctx: dict, limits: dict, trace: list, orchestration: str) -> dict:
+def analyse_symbol(provider: Provider, ctx: dict, limits: dict, trace: list, orchestration: str,
+                   progress: live.Progress | None = None) -> dict:
     reports: dict = {}
     native_out = None
     if provider.supports_native and orchestration == "native":
+        if progress:                      # one native call answers for all three analysts
+            for k in ROLE_ORDER[:3]:
+                progress.start(ctx["symbol"], k)
         t0 = time.time()
         try:
             native_out = provider.run_native(ctx, reports)
@@ -163,24 +173,28 @@ def analyse_symbol(provider: Provider, ctx: dict, limits: dict, trace: list, orc
                           "ms": int((time.time() - t0) * 1000), "error": f"{type(exc).__name__}: {str(exc)[:300]}",
                           "control": True})
             native_out = None
-    reports.update(_call_parallel(provider, ROLE_ORDER[:3], ctx, reports, trace, native_out=native_out))
+    reports.update(_call_parallel(provider, ROLE_ORDER[:3], ctx, reports, trace, native_out=native_out, progress=progress))
     # bull vs bear debate: round 1 in parallel, then round 2 where each rebuts the other's round-1 case
-    reports.update(_call_parallel(provider, ["bull_researcher", "bear_researcher"], ctx, reports, trace, 1))
+    reports.update(_call_parallel(provider, ["bull_researcher", "bear_researcher"], ctx, reports, trace, 1, progress=progress))
     first = {e["agent"]: e for e in trace[-2:]}
-    reports.update(_call_parallel(provider, ["bull_researcher", "bear_researcher"], ctx, reports, trace, 2))
+    reports.update(_call_parallel(provider, ["bull_researcher", "bear_researcher"], ctx, reports, trace, 2, progress=progress))
     for k in ("bull_researcher", "bear_researcher"):
         second = trace.pop() if trace[-1]["agent"] == k else trace.pop(-2)
         f = first[k]
         f.update(output=second["output"], rounds=[f["output"], second["output"]], round=2, ms=f["ms"] + second["ms"],
                  error=f["error"] or second["error"],
                  brain=f["brain"] if f["brain"] == second["brain"] else f"{f['brain']} / {second['brain']}")
-    reports["trader"] = _call(provider, "trader", ctx, reports, trace)
-    reports["risk_manager"] = _call(provider, "risk_manager", ctx, reports, trace)
+        if progress:
+            progress.done(ctx["symbol"], k, f)
+    reports["trader"] = _call(provider, "trader", ctx, reports, trace, progress=progress)
+    reports["risk_manager"] = _call(provider, "risk_manager", ctx, reports, trace, progress=progress)
     gate = hard_limits(ctx, reports, limits)
     reports["risk_limits"] = gate
     trace.append({"symbol": ctx["symbol"], "agent": "risk_limits", "title": "Hard risk limits (code)", "stage": "control",
                   "brain": "deterministic code", "output": gate, "ms": 0, "error": None, "control": True})
-    reports["portfolio_manager"] = _call(provider, "portfolio_manager", ctx, reports, trace)
+    if progress:
+        progress.done(ctx["symbol"], "risk_limits", trace[-1])
+    reports["portfolio_manager"] = _call(provider, "portfolio_manager", ctx, reports, trace, progress=progress)
     final = reports["portfolio_manager"]
     approved = gate["decision"] == "APPROVED" and final.get("decision") == "approve"
     return {"symbol": ctx["symbol"], "as_of": ctx["technical"]["as_of"], "reports": reports, "gate": gate,
@@ -192,7 +206,7 @@ def analyse_symbol(provider: Provider, ctx: dict, limits: dict, trace: list, orc
 
 def run_desk(db: Session, symbols: list[str], provider_name: str | None = None, mode: str = "desk",
              orchestration: str = "native", provider: Provider | None = None, account_name: str = "Agent desk account",
-             auto_approve: bool | None = None) -> AgentRun:
+             auto_approve: bool | None = None, live_id: str | None = None) -> AgentRun:
     t0 = time.time()
     provider = provider or resolve(provider_name)
     ok, why = provider.available()
@@ -200,6 +214,7 @@ def run_desk(db: Session, symbols: list[str], provider_name: str | None = None, 
     if not ok:
         fallback_note = f"{provider.label} unavailable ({why}) - using the rule-based desk"
         provider = RulesProvider()
+    progress = live.Progress(live_id, [s.upper() for s in symbols], provider.name) if live_id else None
     limits = desk_limits(db)
     acct = BRK.get_account(db, account_name)
     br = BRK.broker_for(db, acct)
@@ -219,14 +234,18 @@ def run_desk(db: Session, symbols: list[str], provider_name: str | None = None, 
     results = []
     for s in symbols:
         sym = s.upper()
+        if progress:
+            progress.symbol(sym)
         pos = br.position(sym)
         try:
             ctx = build_context(db, sym, float(pos.qty) if pos else 0.0, equity, limits)
         except Exception as exc:
             trace.append({"symbol": sym, "agent": "orchestrator", "title": "Data", "stage": "orchestration",
                           "brain": "code", "output": {}, "ms": 0, "error": str(exc), "control": True})
+            if progress:
+                progress.fail(sym, str(exc))
             continue
-        results.append(analyse_symbol(provider, ctx, limits, trace, orchestration))
+        results.append(analyse_symbol(provider, ctx, limits, trace, orchestration, progress))
     proposals = [r["proposal"] for r in results if r["proposal"]]
     run.trace = jsonable(trace)
     run.proposals = jsonable(proposals)
@@ -248,6 +267,8 @@ def run_desk(db: Session, symbols: list[str], provider_name: str | None = None, 
     auto = desk_auto_approve(db) if auto_approve is None else auto_approve
     if proposals and auto:
         approve(db, run, actor="auto-approve (within hard limits)")
+    if progress:
+        progress.finish(run.id, run.status)
     return run
 
 
