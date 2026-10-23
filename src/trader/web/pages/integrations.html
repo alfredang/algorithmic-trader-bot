@@ -40,7 +40,7 @@
           <template x-for="q in it.terms.quotes"><blockquote class="border-l-2 border-slate-300 pl-2 my-1 italic muted" x-text="'“' + q + '”'"></blockquote></template>
           <div class="mt-1"><template x-for="u in it.terms.sources"><div><a class="link" :href="u" target="_blank" rel="noopener" x-text="u"></a></div></template></div></details></template>
         <div class="flex items-center gap-2">
-          <button class="btn btn-xs" @click="test(it.key)" :disabled="busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Test connection</button>
+          <button class="btn btn-xs" @click="test(it.key)" :disabled="!!busy[it.key]"><span x-show="busy[it.key]" class="spinner"></span>Test connection</button>
           <span x-show="results[it.key]" class="text-xs" :class="results[it.key] && results[it.key].ok ? 'pos' : 'neg'" x-text="results[it.key] && results[it.key].message"></span>
         </div>
       </div>
@@ -69,7 +69,7 @@
           <label class="col-span-2 inline-flex items-center gap-2"><input type="checkbox" x-model="wh.require_signal_agreement"> Reject alerts that disagree with the app's own signal (HTTP 409)</label>
         </div>
         <div class="flex gap-2"><button class="btn-primary btn-xs" @click="saveWh()">Save</button>
-          <button class="btn btn-xs" @click="test('tradingview')" :disabled="busy.tradingview"><span x-show="busy.tradingview" class="spinner"></span>Run self-test (7 simulated alerts)</button></div>
+          <button class="btn btn-xs" @click="test('tradingview')" :disabled="!!busy.tradingview"><span x-show="busy.tradingview" class="spinner"></span>Run self-test (7 simulated alerts)</button></div>
         <template x-if="results.tradingview"><div class="text-xs space-y-0.5"><div class="font-semibold" :class="results.tradingview.ok ? 'pos' : 'neg'" x-text="results.tradingview.message"></div>
           <template x-for="r in results.tradingview.detail || []"><div><span class="badge" :class="r.ok ? 'badge-ok' : 'badge-err'" x-text="'HTTP ' + r.http"></span> <span x-text="r.test + ' - ' + (r.result || '') + (r.detail ? ': ' + r.detail : '')"></span></div></template></div></template>
       </div>
