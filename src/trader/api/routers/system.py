@@ -75,7 +75,8 @@ def get_prefs(db: Session = Depends(get_db)):
                     "CLAUDE_MODEL": s2.claude_model, "CLAUDE_MODEL_DEEP": s2.claude_model_deep,
                     "OPENAI_MODEL": s2.openai_model, "CODEX_MODEL": s2.codex_model,
                     "DEFAULT_DATA_SOURCE": s2.default_data_source, "RUN_SCHEDULER_IN_PROCESS": s2.run_scheduler_in_process,
-                    "SANDBOX_TIMEOUT_S": s2.sandbox_timeout_s, "AGENT_AUTO_APPROVE": s2.agent_auto_approve}}
+                    "SANDBOX_TIMEOUT_S": s2.sandbox_timeout_s, "AGENT_POSITION_PCT": s2.agent_position_pct,
+                    "AGENT_DATA_MODE": s2.agent_data_mode}}
 
 
 @router.put("/settings")

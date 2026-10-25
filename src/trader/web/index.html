@@ -99,7 +99,7 @@
         <span class="hidden sm:inline-flex badge" :class="status.alpaca ? 'badge-ok' : 'badge-info'" :title="'Data: ' + status.data_mode + ' | Broker: ' + status.broker">
           <span x-text="status.alpaca ? 'Alpaca paper' : 'Offline demo'"></span>
         </span>
-        <a href="#/agents" class="hidden sm:inline-flex badge badge-info" title="AI provider used by the multi-agent desk"><span x-text="'AI: ' + (status.ai_provider||'rules')"></span></a>
+        <a href="#/agents" class="hidden sm:inline-flex badge badge-info" title="AI provider used by the multi-agent workflow"><span x-text="'AI: ' + (status.ai_provider||'rules')"></span></a>
         <span class="badge" :class="live ? 'badge-ok' : 'badge-muted'" :title="live ? 'Live updates connected (SSE)' : 'Live updates reconnecting'">
           <span class="dot" :class="live ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></span><span class="hidden sm:inline">Live</span></span>
         <button @click="toggleKill()" class="btn-xs" :class="kill ? 'bg-red-600 text-white' : 'border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950'"
@@ -134,7 +134,7 @@
     </div>
     <div x-show="onboard.step===0">
       <h2 class="text-xl font-semibold mb-2">Welcome to the Quant Trading Simulator</h2>
-      <p class="mb-2">The companion software for the IBF course <b>Machine Learning 101 for Financial Trading</b> (Tertiary Infotech Academy). Every course lab can be done here: data, indicators, strategies, backtests with costs, research, a multi-agent AI desk and automated paper trading.</p>
+      <p class="mb-2">The companion software for the IBF course <b>Machine Learning 101 for Financial Trading</b> (Tertiary Infotech Academy). Every course lab can be done here: data, indicators, strategies, backtests with costs, research, a multi-agent AI workflow and automated paper trading.</p>
       <div class="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-3 text-sm"><b>Paper trading only.</b> There is no live-money order path: Alpaca is always used with <code>paper=True</code>, otherwise a built-in simulator. Nothing here is investment advice.</div>
     </div>
     <div x-show="onboard.step===1">
@@ -157,7 +157,7 @@
     </div>
     <div x-show="onboard.step===2">
       <h2 class="text-lg font-semibold mb-2">AI agents (optional)</h2>
-      <p class="text-sm mb-2">The multi-agent desk runs with a deterministic rule brain out of the box. To use an LLM:</p>
+      <p class="text-sm mb-2">The 8-agent workflow (lead, finance research, news sentiment, trading strategy, signal, stock trader, performance analysis, strategy review) runs with deterministic rule brains out of the box and trades on the paper account automatically. To use an LLM:</p>
       <ul class="text-sm space-y-1 list-disc ml-5">
         <li><b>OpenAI Codex - Sign in with ChatGPT (subscription):</b> run <code>codex login</code> on this machine. The app reuses your own local login through the official Codex SDK and never reads or stores tokens.</li>
         <li><b>Claude (Claude Agent SDK):</b> set <code>ANTHROPIC_API_KEY</code>. Claude.ai subscription login is not offered: Anthropic's terms do not allow third-party apps to use it.</li>

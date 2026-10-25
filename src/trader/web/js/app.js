@@ -104,7 +104,7 @@ QTS.NAV = [
   { label: 'Automation', items: [
     { route: 'trading', label: 'Paper Trading', icon: 'bot', badge: 'openOrders' },
     { route: 'analytics', label: 'Analytics', icon: 'chart' },
-    { route: 'agents', label: 'AI Agents', icon: 'brain', badge: 'pendingApprovals' } ] },
+    { route: 'agents', label: 'AI Agents', icon: 'brain', badge: 'agentRunning' } ] },
   { label: 'System', items: [
     { route: 'integrations', label: 'Integrations', icon: 'plug' },
     { route: 'settings', label: 'Settings', icon: 'gear' },
@@ -163,7 +163,7 @@ document.addEventListener('focusout', (e) => {
 });
 
 document.addEventListener('alpine:init', () => {
-  Alpine.store('app', { toasts: [], defs: {}, route: QTS.parseHash(), status: {}, counts: { openOrders: 0, pendingApprovals: 0 }, symbols: [] });
+  Alpine.store('app', { toasts: [], defs: {}, route: QTS.parseHash(), status: {}, counts: { openOrders: 0, agentRunning: 0 }, symbols: [] });
   window.shell = function () {
     return {
       nav: QTS.NAV, sidebarOpen: false, dark: document.documentElement.classList.contains('dark'),
@@ -194,7 +194,7 @@ document.addEventListener('alpine:init', () => {
       async refreshCounts() {
         try {
           const [o, runs] = await Promise.all([QTS.get('/api/orders?status=open&limit=200', true), QTS.get('/api/agents/runs?limit=30', true)]);
-          Alpine.store('app').counts = { openOrders: o.length, pendingApprovals: runs.filter((r) => r.status === 'proposed').length };
+          Alpine.store('app').counts = { openOrders: o.length, agentRunning: runs.filter((r) => r.status === 'running').length };
         } catch (e) { /* */ }
       },
       async tickClock() {
@@ -222,7 +222,7 @@ document.addEventListener('alpine:init', () => {
         es.addEventListener('hello', () => { this.live = true; });
         es.onmessage = (m) => this.dispatch(m);
         ['stage', 'order.new', 'order.status', 'order.filled', 'bot.cycle', 'bot.status', 'bot.error', 'backtest.done',
-         'research.done', 'agents.run', 'agents.approved', 'agents.rejected', 'webhook.alert', 'kill_switch', 'data.ingested']
+         'research.done', 'agents.run', 'webhook.alert', 'kill_switch', 'data.ingested']
           .forEach((k) => es.addEventListener(k, (m) => this.dispatch(m)));
         es.onerror = () => { this.live = false; setTimeout(() => { if (es.readyState === 2) this.connect(); }, 4000); };
       },
@@ -282,9 +282,9 @@ QTS.coerce = function (schema, values) {
 };
 QTS.symbolsFrom = (s) => String(s || '').split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 QTS.statusBadge = function (s) {
-  return { ok: 'badge-ok', done: 'badge-ok', filled: 'badge-ok', running: 'badge-info', new: 'badge-info', accepted: 'badge-info', proposed: 'badge-warn',
+  return { ok: 'badge-ok', done: 'badge-ok', filled: 'badge-ok', running: 'badge-info', new: 'badge-info', accepted: 'badge-info', long: 'badge-ok', short: 'badge-err',
     held: 'badge-muted', warning: 'badge-warn', partially_filled: 'badge-warn', error: 'badge-err', rejected: 'badge-err', canceled: 'badge-muted',
     executed: 'badge-ok', no_trade: 'badge-muted', stopped: 'badge-muted', halted: 'badge-err', idle: 'badge-muted', PASS: 'badge-ok',
-    WARN: 'badge-warn', FAIL: 'badge-err', INFO: 'badge-info', pass: 'badge-ok', fail: 'badge-err', pending: 'badge-muted', APPROVED: 'badge-ok',
-    REJECTED: 'badge-err', 'NO TRADE': 'badge-muted' }[s] || 'badge-muted';
+    WARN: 'badge-warn', FAIL: 'badge-err', INFO: 'badge-info', pass: 'badge-ok', fail: 'badge-err', pending: 'badge-muted', failed: 'badge-err',
+    buy: 'badge-ok', hold: 'badge-muted', none: 'badge-muted', cover: 'badge-info', sell: 'badge-warn' }[s] || 'badge-muted';
 };

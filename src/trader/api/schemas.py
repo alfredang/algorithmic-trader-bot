@@ -83,8 +83,15 @@ class OrderTicket(BaseModel):
 class AgentRunRequest(BaseModel):
     symbols: list[str] = Field(default_factory=lambda: ["NVDA", "AAPL", "SPY"])
     provider: str | None = Field(None, description="auto | rules | codex | claude | openai")
-    orchestration: str = Field("native", description="native (SDK multi-agent) | pipeline (one call per agent)")
+    orchestration: str = Field("native", description="native (SDK multi-agent for the two research agents) | pipeline "
+                                                      "(one call per agent)")
+    data_mode: str | None = Field(None, description="auto (every configured data source) | offline (no network: cached / "
+                                                    "demo data). Default: AGENT_DATA_MODE")
     live_id: str | None = Field(None, max_length=64, description="client id to follow the run live at /api/agents/live/{live_id}")
+
+
+class AgentSettings(BaseModel):
+    position_pct: float = Field(..., gt=0, le=1, description="Stock Trader order size as a fraction of equity (0.10 = 10%)")
 
 
 class AlwaysOnConfig(BaseModel):
@@ -93,3 +100,4 @@ class AlwaysOnConfig(BaseModel):
     symbols: list[str] = Field(default_factory=lambda: ["NVDA", "AAPL", "SPY"])
     provider: str = "auto"
     refresh_news: bool = True
+    data_mode: str = Field("auto", description="auto | offline")

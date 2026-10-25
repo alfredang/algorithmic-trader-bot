@@ -45,7 +45,7 @@ The Pipeline Map shows the 14 stages of the end-to-end pipeline (course Topic 4.
 6. Strategy search
 7. Backtesting
 8. A/B test & diagnostics
-9. Multi-agent desk
+9. Multi-agent workflow
 10. Pre-trade risk checks
 11. Forward test / paper trading
 12. Execution & order lifecycle
@@ -83,8 +83,9 @@ live-paper → analytics**. Each step has a **pass/fail gate**:
 
 ![Dashboard](screenshots/dashboard.png)
 
-The Dashboard shows a compact pipeline strip, KPI cards (bots' equity and P&L, best backtest Sharpe, bars cached,
-proposals awaiting your approval), recent backtests, the US market clock, the bots and the latest orders.
+The Dashboard shows a compact pipeline strip, KPI cards (bots' equity and P&L, best backtest Sharpe, bars cached, the AI
+agents' paper return), the **AI agents performance** card (equity, total and last daily return, Sharpe, max drawdown, win
+rate, trades, exposure), recent backtests, the US market clock, the bots and the latest orders.
 
 ### Course Labs
 
@@ -296,7 +297,7 @@ Builder and re-run.
 
 ---
 
-## 7. The multi-agent desk and human approval
+## 7. The multi-agent workflow
 
 ![AI Agents](screenshots/agents.png)
 
@@ -304,24 +305,33 @@ Builder and re-run.
    - **Agentic AI** is the capability of AI to plan and call tools, skills, memory and instructions.
    - An **AI agent** is a special class of agentic AI that stands by 24/7 and works all the time (for example OpenClaw,
      Hermes Agent or OpenAI Dots).
-2. Check the **Brain** card to see which providers are ready. Choose symbols, a provider and the orchestration:
-   - *native* uses the SDK's own multi-agent features: Claude subagents, or OpenAI agents-as-tools.
-   - *pipeline* makes one call per agent.
-3. Press **Run multi-agent analysis**. For each symbol you see one card per agent:
-   - the **Technical**, **Sentiment/News** and **Fundamental-lite** analysts, with their tools
-   - the **Bull** and **Bear** researchers, who debate over two rounds and rebut each other
-   - the **Trader**: buy, sell or hold, with confidence and size
-   - the **Risk Manager**: an advisory review
-   - the **Hard risk limits**: code, not an LLM. They cap the size, set ATR stops and targets, and enforce the allow-list
-     and minimum confidence.
-   - the **Portfolio Manager / Orchestrator**: the final recommendation
-   
-   Each card has a brain badge. If an LLM call fails, the rule brain answers instead and is marked *rules (fallback)*.
-4. **Proposals awaiting human approval** lists each trade. Press **Approve paper orders** or **Reject**.
-   - Approved buys become bracket orders in the regular session, or extended-hours limit orders outside it.
-   - The decision is written to the audit log.
-5. Under **Hard limits**, set the maximum position, maximum order value, minimum confidence and the ATR stop / target.
-   **Auto-approve** (off by default) approves only proposals that pass every limit.
+2. Check the **Brain** card to see which providers are ready. Choose symbols, a provider, the orchestration and the data:
+   - *native* runs the two research agents with the SDK's own multi-agent features (Claude subagents, or OpenAI
+     agents-as-tools); *pipeline* makes one call per agent.
+   - *auto* data uses every configured source (Twelve Data, Alpaca, Yahoo Finance, Equibles, Reddit, NewsAPI); *offline*
+     makes no network call (cached / demo bars and the synthetic demo headlines).
+3. Press **Run the multi-agent workflow**. The **Agent flow** shows each agent working, in this order:
+   1. the **Lead Agent** plans the run (and writes the run summary at the end)
+   2. **Finance Research** (candles at 1 min, 15 min, 1 hour and daily; Yahoo Finance ratios; Equibles company data) and
+      **News Sentiment** (Reddit posts and NewsAPI headlines, lexicon-scored and refined by the agent) - in parallel
+   3. **Trading Strategy**: picks one algorithm or a mix of trend (EMA crossover), momentum, volatility breakout, VWAP, RSI
+      and MACD. The indicator values and each algorithm's vote are computed in code; the agent chooses the weights.
+   4. **Signal Generation**: *long*, *short* or *null*, with a confidence
+   5. **Stock Trader**: places the paper order automatically - long = buy, short = sell short (an opposite position is
+      closed first), null = no order. Market orders sized at the **Settings** position size (10% of equity by default).
+   6. **Performance Analysis**: total and daily returns, Sharpe, max drawdown, win rate, trades and exposure of the agent
+      account
+   7. **Strategy Review**: new guidance (algorithm weights, long / short thresholds, notes) for the next run
+
+   Pick a symbol tab to read each agent's card. Each card has a brain badge. If an LLM call fails, the rule brain answers
+   instead and is marked *rules (fallback)*; the Stock Trader is always deterministic code.
+4. **Paper orders sent** lists the orders (also in Paper Trading, source *agent*). With Alpaca keys they go to your Alpaca
+   **paper** account; without keys to the built-in simulator. There is **no approval step and no agent risk limit**; the
+   global kill switch still stops all trading. A broker refusal (for example a symbol that cannot be shorted) is shown on
+   the Stock Trader card.
+5. **Performance** shows the agents' metrics and equity curve; **Strategy guidance** shows the review's latest guidance
+   and its history. Run the workflow again: the Trading Strategy card says which run's review it used - the feedback loop.
+6. **Settings** sets the Stock Trader's position size (fraction of equity per order).
 
 ---
 
@@ -396,13 +406,13 @@ cost table and the trades. You can also:
 
 ## 11. The always-on AI agent
 
-Go to **AI Agents > Always-on agent**. Enable the agent and set its wake-up interval, watch list and provider. On every
-wake-up the agent:
+Go to **AI Agents > Always-on agent**. Enable the agent and set its wake-up interval, watch list, provider and data mode.
+On every wake-up the agent:
 
-1. refreshes the headlines
-2. runs the full multi-agent desk
-3. writes **memory** notes
-4. leaves proposals for your approval, or auto-approves them inside the hard limits if you enabled that
+1. refreshes the headlines (if enabled)
+2. runs the full 8-agent workflow, including the paper orders of the Stock Trader agent
+3. updates the performance metrics and the strategy guidance for its next wake-up
+4. writes **memory** notes (signals, decisions, guidance)
 
 **Wake it now** runs it once immediately. The worker heartbeat shows whether a worker is running.
 
@@ -412,7 +422,7 @@ wake-up the agent:
 
 ![Integrations](screenshots/integrations.png)
 
-**Integrations** has a card for each service: Alpaca, Twelve Data, NewsAPI, Equibles, yfinance, TradingView, OpenAI Codex (Sign in
+**Integrations** has a card for each service: Alpaca, Twelve Data, NewsAPI, Reddit (client id + secret for the News Sentiment agent), Equibles, yfinance, TradingView, OpenAI Codex (Sign in
 with ChatGPT), Claude (Agent SDK, API key), OpenAI Agents SDK, and the database. Each card shows:
 
 - the connection status, with values **masked**

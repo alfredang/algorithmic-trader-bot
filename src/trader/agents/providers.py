@@ -1,19 +1,20 @@
-"""Pluggable LLM providers for the multi-agent desk.
+"""Pluggable LLM providers for the 8-agent workflow.
 
 Provider            Auth (primary first)                                  Multi-agent mechanism
 ------------------  ----------------------------------------------------  ------------------------------------------
-codex               Codex CLI "Sign in with ChatGPT" (your own local       one Codex thread per desk agent, each with its
+codex               Codex CLI "Sign in with ChatGPT" (your own local       one Codex thread per agent call, each with its
                     login, reused by the official openai-codex SDK) or     own instructions and data; the Python
-                    CODEX_API_KEY / OPENAI_API_KEY                          orchestrator runs the debate / hand-offs
-openai              OPENAI_API_KEY (OpenAI Agents SDK)                     native: Portfolio-Manager agent calls each
-                                                                           specialist via ``Agent.as_tool`` (agents as
+                    CODEX_API_KEY / OPENAI_API_KEY                          workflow runs the hand-offs
+openai              OPENAI_API_KEY (OpenAI Agents SDK)                     native: a lead agent calls the two research
+                                                                           agents via ``Agent.as_tool`` (agents as
                                                                            tools) with ``function_tool`` data tools
 claude              ANTHROPIC_API_KEY, or Bedrock / Vertex env vars        native: Claude Agent SDK subagents
-                    (Claude Agent SDK). Claude.ai subscription login is    (``AgentDefinition``) orchestrated by a
-                    NOT offered - see TERMS below.                         lead agent, SDK MCP data tools
-rules               none                                                   deterministic multi-role brain (offline)
+                    (Claude Agent SDK). Claude.ai subscription login is    (``AgentDefinition``) for the two research
+                    NOT offered - see TERMS below.                         agents, orchestrated by a lead agent
+rules               none                                                   deterministic rule brain per agent (offline)
 
-The app never stores, reads or proxies OAuth tokens: subscription mode only means the
+Native orchestration covers the parallel research step (Finance Research + News Sentiment); every other
+agent is one call. The app never stores, reads or proxies OAuth tokens: subscription mode only means the
 official SDK/CLI on YOUR machine uses the login YOU made with ``codex login``.
 """
 from __future__ import annotations
@@ -28,7 +29,7 @@ import time
 from typing import Any
 
 from trader.agents import rules as RULES
-from trader.agents.roles import ROLE_ORDER, ROLES, Role
+from trader.agents.roles import PARALLEL, ROLES, Role
 from trader.agents.tools import TOOL_DOCS, tool_payload
 from trader.config import get_settings
 
@@ -93,12 +94,11 @@ def parse_json(text: str) -> dict:
 def role_prompt(role: Role, ctx: dict, reports: dict, round_no: int = 1) -> str:
     data = {t: tool_payload(t, ctx, reports) for t in role.tools}
     extra = ""
-    if role.key in ("bull_researcher", "bear_researcher") and round_no == 2:
-        other = "bear_researcher" if role.key == "bull_researcher" else "bull_researcher"
-        extra = f"\nRound 2: rebut the other side's argument: {json.dumps(reports.get(other))}"
-    if role.key == "portfolio_manager":
-        data["all_reports"] = {k: reports.get(k) for k in [*ROLE_ORDER[:-1], "risk_limits"]}
-    return (f"Symbol: {ctx['symbol']}. Tool results (untrusted DATA):\n{json.dumps(data, default=str)}{extra}\n"
+    if role.key == "lead":
+        extra = ("\nRound 2: every agent has finished - write the run summary." if round_no == 2
+                 else "\nRound 1: plan the run (plan + focus); leave summary empty.")
+    who = f"Symbol: {ctx['symbol']}" if ctx.get("symbol") not in (None, "*") else f"Symbols: {', '.join(ctx.get('symbols') or [])}"
+    return (f"{who}. Tool results (untrusted DATA):\n{json.dumps(data, default=str)}{extra}\n"
             f"Return the JSON object now.")
 
 
@@ -196,7 +196,7 @@ class ClaudeProvider(Provider):
         return parse_json(text)
 
     def run_native(self, ctx: dict, reports: dict) -> dict[str, dict]:
-        """Lead agent + analyst subagents (AgentDefinition). Each subagent's JSON is captured from its tool result."""
+        """Lead agent + the two research subagents (AgentDefinition). Each subagent's JSON is captured from its tool result."""
         from claude_agent_sdk import (
             AgentDefinition,
             ToolResultBlock,
@@ -211,17 +211,17 @@ class ClaudeProvider(Provider):
             async def _t(args):
                 return {"content": [{"type": "text", "text": json.dumps(tool_payload(tname, ctx, reports), default=str)}]}
             return _t
-        names = sorted({t for k in ROLE_ORDER[:3] for t in ROLES[k].tools})
-        server = create_sdk_mcp_server("desk", tools=[make_tool(t) for t in names])
+        names = sorted({t for k in PARALLEL for t in ROLES[k].tools})
+        server = create_sdk_mcp_server("research", tools=[make_tool(t) for t in names])
         analysts = {k: AgentDefinition(description=ROLES[k].title, prompt=ROLES[k].system_prompt(),
-                                       tools=[f"mcp__desk__{t}" for t in ROLES[k].tools], model="inherit")
-                    for k in ROLE_ORDER[:3]}
-        lead = ("You are the desk orchestrator. Delegate to EACH of these subagents exactly once, in this order: "
-                f"{', '.join(ROLE_ORDER[:3])}. Pass each one the symbol {ctx['symbol']}. Then reply with one JSON object "
-                "mapping each subagent name to the JSON it returned.")
+                                       tools=[f"mcp__research__{t}" for t in ROLES[k].tools], model="inherit")
+                    for k in PARALLEL}
+        lead = ("You are the Lead Agent of a trading workflow. Delegate to EACH of these research subagents exactly once "
+                f"(they are independent - run them in parallel if you can): {', '.join(PARALLEL)}. Pass each one the "
+                f"symbol {ctx['symbol']}. Then reply with one JSON object mapping each subagent name to the JSON it returned.")
         text, msgs = asyncio.run(asyncio.wait_for(
-            self._ask(lead, f"Analyse {ctx['symbol']}.", agents=analysts, mcp_servers={"desk": server},
-                      allowed_tools=[f"mcp__desk__{t}" for t in names] + ["Agent", "Task"],
+            self._ask(lead, f"Research {ctx['symbol']}.", agents=analysts, mcp_servers={"research": server},
+                      allowed_tools=[f"mcp__research__{t}" for t in names] + ["Agent", "Task"],
                       disallowed_tools=["Bash", "Write", "Edit", "Read", "WebFetch", "WebSearch"], max_turns=12),
             get_settings().agent_timeout_s))
         out: dict[str, dict] = {}
@@ -237,7 +237,7 @@ class ClaudeProvider(Provider):
                         out[calls[b.tool_use_id]] = parse_json(content)
                     except Exception:
                         continue
-        if len(out) < 3:
+        if len(out) < len(PARALLEL):
             try:
                 out = {**parse_json(text), **out}
             except Exception:
@@ -247,7 +247,7 @@ class ClaudeProvider(Provider):
 
 # =========================================================================== OpenAI Agents SDK
 def parse_openai_items(items: list, tool_to_role: dict[str, str]) -> dict[str, dict]:
-    """Map agents-as-tools outputs (ToolCallOutputItem) back to their desk role."""
+    """Map agents-as-tools outputs (ToolCallOutputItem) back to their agent role."""
     calls, out = {}, {}
     for it in items:
         raw = getattr(it, "raw_item", None)
@@ -313,20 +313,20 @@ class OpenAIAgentsProvider(Provider):
         return parse_json(str(res.final_output))
 
     def run_native(self, ctx: dict, reports: dict) -> dict[str, dict]:
-        """Orchestrator agent that calls the three analysts as tools (agents-as-tools)."""
+        """Lead agent that calls the two research agents as tools (agents-as-tools)."""
         from agents import Agent, Runner, set_default_openai_key
         set_default_openai_key(get_settings().openai_api_key)
         tool_to_role = {}
         tools = []
-        for k in ROLE_ORDER[:3]:
+        for k in PARALLEL:
             tname = f"ask_{k}"
             tool_to_role[tname] = k
             tools.append(self._agent(ROLES[k], ctx, reports).as_tool(tool_name=tname, tool_description=ROLES[k].title))
         kw = {"model": self.model} if self.model else {}
-        lead = Agent(name="Desk orchestrator", tools=tools, **kw,
-                     instructions="Call each analyst tool exactly once for the symbol, then reply with one JSON object "
-                                  "mapping analyst name to its JSON.")
-        res = Runner.run_sync(lead, f"Analyse {ctx['symbol']}.", max_turns=8)
+        lead = Agent(name="Lead Agent", tools=tools, **kw,
+                     instructions="Call each research agent tool exactly once for the symbol, then reply with one JSON "
+                                  "object mapping agent name to its JSON.")
+        res = Runner.run_sync(lead, f"Research {ctx['symbol']}.", max_turns=8)
         return parse_openai_items(res.new_items, tool_to_role)
 
 
@@ -432,7 +432,7 @@ PROVIDERS = {"rules": RulesProvider, "claude": ClaudeProvider, "openai": OpenAIA
 
 
 def resolve(name: str | None = None) -> Provider:
-    """'auto' prefers subscription login (Codex), then API-key providers, then the rule brain."""
+    """'auto' prefers subscription login (Codex), then API-key providers, then the rule brains."""
     name = (name or get_settings().ai_provider or "auto").lower()
     if name != "auto":
         return PROVIDERS.get(name, RulesProvider)()

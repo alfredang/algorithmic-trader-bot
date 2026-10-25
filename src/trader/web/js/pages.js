@@ -15,7 +15,7 @@
       case 'search': return [`<b>${m.runs || 0}</b> grid / walk-forward / regime runs`];
       case 'backtest': return m.last_id ? [`#${m.last_id} CAGR <b>${p(m.cagr, 1)}</b> · Sharpe <b>${f(m.sharpe)}</b>`, `MaxDD <b>${p(m.max_drawdown, 1)}</b> · ${m.trades} trades`] : ['no backtest yet'];
       case 'abtest': return [`A/B: ${(m.last_ab || '–').split(' - ')[0]}`, `Diag: ${(m.last_diagnostics || '–').split(' - ')[0]}`];
-      case 'agents': return [`brain: <b>${m.provider}</b>`, `last: ${m.last_status || '–'} · awaiting approval <b>${m.pending_approval || 0}</b>`];
+      case 'agents': return [`brain: <b>${m.provider}</b>`, `last: ${m.last_status || '–'} · agent orders 24h <b>${m.agent_orders_today || 0}</b>`];
       case 'risk': return [m.kill_switch ? '<b class="neg">KILL SWITCH ON</b>' : 'kill switch off', `blocked (24h): <b>${m.blocked_today || 0}</b>`];
       case 'forward': return [`bots <b>${m.running}</b>/${m.bots} running · ${m.broker}`, `orders 24h <b>${m.orders_today}</b> · open pos <b>${m.open_positions}</b>`, `P&L <b class="${Q.cls(m.pnl)}">${Q.usd(m.pnl)}</b>`];
       case 'execution': return [`24h: <b>${m.orders_today}</b> orders · ${m.filled_today} filled`, `open ${m.open} · rejected ${m.rejected_today}`];
@@ -133,20 +133,25 @@
   /* ------------------------------------------------------------------ dashboard */
   window.dashboardPage = function () {
     return {
-      pipe: { stages: [] }, sum: { recent: [], bots: [], best: [] }, runs: [], orders: [], clock: {}, status: {}, QTS: Q,
+      pipe: { stages: [] }, sum: { recent: [], bots: [], best: [] }, orders: [], clock: {}, status: {}, agentPerf: {}, QTS: Q,
       async init() {
         this.load();
         Q.on('*', (d, kind) => { if (['bot.cycle', 'order.filled', 'backtest.done', 'agents.run'].includes(kind)) { clearTimeout(this._t); this._t = setTimeout(() => this.load(), 800); } });
       },
       async load() {
-        const [p, s, r, o, c, st] = await Promise.all([Q.get('/api/pipeline/status', true), Q.get('/api/analytics/summary', true),
-          Q.get('/api/agents/runs?limit=5', true), Q.get('/api/orders?limit=8', true), Q.get('/api/clock', true), Q.get('/api/system/status', true)]);
-        Object.assign(this, { pipe: p, sum: s, runs: r, orders: o, clock: c, status: st });
+        const [p, s, a, o, c, st] = await Promise.all([Q.get('/api/pipeline/status', true), Q.get('/api/analytics/summary', true),
+          Q.get('/api/agents/performance', true), Q.get('/api/orders?limit=8', true), Q.get('/api/clock', true), Q.get('/api/system/status', true)]);
+        Object.assign(this, { pipe: p, sum: s, agentPerf: a, orders: o, clock: c, status: st });
       },
       dot(s) { return DOT[s] || DOT.idle; },
       get totalEquity() { return this.sum.bots.reduce((a, b) => a + (b.equity || 0), 0); },
       get totalPnl() { return this.sum.bots.reduce((a, b) => a + ((b.equity || 0) - (b.starting_cash || 0)), 0); },
-      get pending() { return this.runs.filter((r) => r.status === 'proposed').length; },
+      fmtAgent(k, v) {
+        if (v === null || v === undefined) return '–';
+        if (k === 'equity') return Q.usd(v);
+        if (k === 'trades') return String(v);
+        return k === 'sharpe' ? Q.num(v) : Q.pct(v);
+      },
     };
   };
 

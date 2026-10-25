@@ -16,23 +16,25 @@
     </div>
   </div>
 
-  <div class="tabs"><template x-for="t in [['desk','Multi-agent desk'],['always','Always-on agent'],['limits','Hard limits'],['memory','Memory'],['about','How it works']]"><a class="tab" :class="tab===t[0] && 'active'" @click="tab=t[0]" x-text="t[1]"></a></template></div>
+  <div class="tabs"><template x-for="t in TABS"><a class="tab" :class="tab===t[0] && 'active'" @click="setTab(t[0])" x-text="t[1]"></a></template></div>
 
-  <!-- desk -->
-  <div x-show="tab==='desk'" class="grid xl:grid-cols-4 gap-4">
+  <!-- workflow -->
+  <div x-show="tab==='workflow'" class="grid xl:grid-cols-4 gap-4">
     <div class="space-y-3">
       <div class="card space-y-2">
-        <div class="card-title">Run the desk</div>
+        <div class="card-title">Run the multi-agent workflow</div>
         <div><label class="label">Symbols</label><input list="qts-symbols" class="input" x-model="symbols"></div>
         <div><label class="label">Provider</label><select class="input" x-model="provider"><option value="">server default (AI_PROVIDER)</option><option value="auto">auto (subscription login first)</option><option value="rules">rule-based (offline)</option><option value="codex">OpenAI Codex (ChatGPT login)</option><option value="claude">Claude Agent SDK (API key)</option><option value="openai">OpenAI Agents SDK (API key)</option></select></div>
-        <div><label class="label" title="native: the SDK's own multi-agent features (Claude subagents / OpenAI agents-as-tools) for the analysts; pipeline: one agent call per role">Orchestration <span class="qmark">?</span></label><select class="input" x-model="orchestration"><option value="native">native SDK multi-agent</option><option value="pipeline">pipeline (one call per agent)</option></select></div>
-        <button class="btn-primary w-full justify-center" @click="go()" :disabled="busy"><span x-show="busy" class="spinner"></span><span x-text="busy ? 'Agents are working…' : 'Run multi-agent analysis'"></span></button>
-        <p class="help">Proposals never trade by themselves: a human approves them (or auto-approve inside the hard limits, off by default).</p>
+        <div><label class="label" title="native: the SDK's own multi-agent features (Claude subagents / OpenAI agents-as-tools) run the two research agents; pipeline: one call per agent">Orchestration <span class="qmark">?</span></label><select class="input" x-model="orchestration"><option value="native">native SDK multi-agent</option><option value="pipeline">pipeline (one call per agent)</option></select></div>
+        <div><label class="label" title="auto: Twelve Data, Alpaca, Yahoo Finance, Equibles, Reddit and NewsAPI where configured; offline: no network at all (cached / demo bars, demo headlines)">Data <span class="qmark">?</span></label><select class="input" x-model="dataMode"><option value="">server default (AGENT_DATA_MODE)</option><option value="auto">auto - every configured source</option><option value="offline">offline - demo data, no network</option></select></div>
+        <button class="btn-primary w-full justify-center" @click="go()" :disabled="busy"><span x-show="busy" class="spinner"></span><span x-text="busy ? 'Agents are working…' : 'Run the multi-agent workflow'"></span></button>
+        <p class="help">The Stock Trader agent places <b>market orders on the paper account automatically</b> (<span x-text="QTS.pct(cfg.position_pct, 0)"></span> of equity each, <span x-text="cfg.broker"></span>) - there is no approval step and no agent risk limit. The kill switch still halts everything.</p>
       </div>
       <div class="card"><div class="card-title">Runs</div>
         <template x-for="r in runs" :key="r.id"><button class="w-full text-left text-sm py-1.5 border-b border-slate-100 dark:border-slate-800" :class="run && run.id===r.id ? 'font-semibold' : ''" @click="open(r.id)">
           <div class="flex gap-1 items-center"><span x-text="'#' + r.id"></span><span class="badge" :class="QTS.statusBadge(r.status)" x-text="r.status"></span><span class="badge badge-muted" x-text="r.mode"></span></div>
-          <div class="text-xs muted" x-text="r.symbols.join(',') + ' · ' + r.provider + ' · ' + r.agents + ' agent calls · ' + QTS.ago(r.created_at)"></div></button></template>
+          <div class="text-xs muted" x-text="(r.signals || []).map((s) => s.symbol + ' ' + (s.signal || 'null')).join(' · ') || r.symbols.join(',')"></div>
+          <div class="text-xs muted" x-text="r.provider + ' · ' + r.agents + ' agent calls · ' + QTS.ago(r.created_at)"></div></button></template>
         <div x-show="!runs.length" class="text-xs muted">No runs yet.</div>
       </div>
     </div>
@@ -43,90 +45,188 @@
           <span class="ml-auto text-xs muted font-normal" x-text="flowProgress(flow).done + ' / ' + flowProgress(flow).all + ' agent steps done'"></span></div>
         <div class="af-bar mb-2"><div :style="'width:' + flowProgress(flow).pct + '%'"></div></div>
         <div class="scroll-x">
-          <div class="af-row af-head"><div class="af-sym"></div>
-            <template x-for="(col, ci) in FLOW" :key="col[0]"><div class="contents"><span x-show="ci > 0" class="af-arrow invisible">→</span><div class="af-col af-col-label" :style="ci === 0 && 'flex-grow:1.3'" x-text="col[0]"></div></div></template></div>
-          <template x-for="row in flow.rows" :key="row.symbol">
-            <div class="af-row" :class="{ current: flow.current === row.symbol, selected: !flow.current && symSel === row.symbol }" @click="symSel = row.symbol" title="Show this symbol's agent reports below">
-              <div class="af-sym"><span x-text="row.symbol"></span><span class="text-[10px] font-normal muted" x-text="rowState(flow, row)"></span></div>
-              <template x-for="(col, ci) in FLOW" :key="col[0]"><div class="contents">
-                <span x-show="ci > 0" class="af-arrow" :class="ci > 0 && colLit(row, ci - 1) && 'lit'">→</span>
-                <div class="af-col" :style="ci === 0 && 'flex-grow:1.3'"><template x-for="n in col[1]" :key="n[0]">
-                  <div class="af-node" :class="nodeClass(n[0], row.nodes[n[0]])" :title="nodeTip(n, row.nodes[n[0]])">
-                    <div class="af-name"><span class="af-dot"></span><span x-text="n[1]"></span></div>
-                    <div class="af-out" x-text="nodeText(n[0], row.nodes[n[0]])"></div>
-                  </div></template></div>
-              </div></template>
-            </div>
-          </template>
+          <div class="af-row af-head"><template x-for="(col, ci) in FLOW" :key="col[0]"><div class="contents"><span x-show="ci > 0" class="af-arrow invisible">→</span><div class="af-col af-col-label" x-text="col[0]"></div></div></template></div>
+          <div class="af-row" style="cursor:default">
+            <template x-for="(col, ci) in FLOW" :key="col[0]"><div class="contents">
+              <span x-show="ci > 0" class="af-arrow" :class="colLit(flow, ci - 1) && 'lit'">→</span>
+              <div class="af-col"><template x-for="n in col[1]" :key="n[0]">
+                <div class="af-node" :class="'af-' + agg(flow, n[0]).state" :title="nodeTip(flow, n)">
+                  <div class="af-name"><span class="af-dot"></span><span x-text="n[1]"></span></div>
+                  <template x-for="line in nodeLines(flow, n[0])"><div class="af-out" x-text="line"></div></template>
+                </div></template></div>
+            </div></template>
+          </div>
+          <div class="af-feedback text-[11px] muted"><span>↺</span> Strategy Review guidance → Trading Strategy on the <b>next</b> run (feedback loop)
+            <span x-show="guidanceInfo" x-text="' · current guidance from ' + guidanceInfo"></span></div>
         </div>
+        <div class="scroll-x mt-2" x-show="flow.symbols.length"><table class="t">
+          <thead><tr><th>Symbol</th><th class="num">Finance</th><th class="num">Sentiment</th><th class="num">Composite</th><th>Signal</th><th class="num">Conf.</th><th>Stock Trader</th></tr></thead>
+          <tbody><template x-for="s in flow.symbols" :key="s"><tr class="cursor-pointer" :class="{ 'font-semibold': flow.current === s }" @click="symSel = s">
+            <td x-text="s + (flow.current === s ? ' …' : '')"></td>
+            <td class="num" :class="QTS.cls(o(flow, s, 'finance_research').score)" x-text="QTS.num(o(flow, s, 'finance_research').score)"></td>
+            <td class="num" :class="QTS.cls(o(flow, s, 'news_sentiment').score)" x-text="QTS.num(o(flow, s, 'news_sentiment').score)"></td>
+            <td class="num" :class="QTS.cls((o(flow, s, 'trading_strategy').composite || {}).composite)" x-text="QTS.num((o(flow, s, 'trading_strategy').composite || {}).composite)"></td>
+            <td><span x-show="'signal' in o(flow, s, 'signal_generation')" class="badge" :class="QTS.statusBadge(o(flow, s, 'signal_generation').signal)" x-text="o(flow, s, 'signal_generation').signal || 'null'"></span></td>
+            <td class="num" x-text="QTS.num(o(flow, s, 'signal_generation').confidence)"></td>
+            <td class="text-xs" x-text="traderText(o(flow, s, 'stock_trader'))"></td></tr></template></tbody></table></div>
         <div class="flex flex-wrap gap-3 mt-2 text-[11px] muted">
-          <template x-for="l in [['waiting','waiting'],['running','working now'],['done','done (LLM or rules)'],['fallback','rule fallback after an LLM error'],['code','hard limits (code)'],['human','awaiting human'],['blocked','rejected / blocked']]">
+          <template x-for="l in [['waiting','waiting'],['running','working now'],['done','done (LLM or rules)'],['fallback','rule fallback after an LLM error'],['code','deterministic code (broker)'],['blocked','order failed']]">
             <span class="inline-flex items-center gap-1"><span class="af-dot" :class="'af-legend-' + l[0]"></span><span x-text="l[1]"></span></span></template>
         </div>
       </div></template>
-      <div x-show="!run && !live" class="empty py-16">Run the desk to see each agent's report, the bull/bear debate, the trader's proposal, the risk review and the portfolio manager's recommendation.</div>
+      <div x-show="!run && !live" class="empty py-16">Run the workflow to see each agent's output: the lead's plan, finance research and news sentiment, the trading strategy, the signal, the paper order, the performance analysis and the strategy review.</div>
       <template x-if="run && !live"><div class="space-y-3">
         <div class="card flex flex-wrap items-center gap-2">
-          <div class="flex-1"><div class="font-semibold" x-text="'Desk run #' + run.id + ' · ' + run.provider + (run.model ? ' (' + run.model + ')' : '') + ' · ' + run.orchestration"></div>
-            <div class="text-xs muted" x-text="run.symbols.join(', ') + ' · ' + run.duration_ms + ' ms · auth: ' + run.auth_mode + (run.approved_by ? ' · decided by ' + run.approved_by : '')"></div></div>
+          <div class="flex-1 min-w-[16rem]"><div class="font-semibold" x-text="'Run #' + run.id + ' · ' + run.provider + (run.model ? ' (' + run.model + ')' : '') + ' · ' + run.orchestration"></div>
+            <div class="text-xs muted" x-text="run.symbols.join(', ') + ' · ' + run.duration_ms + ' ms · auth: ' + run.auth_mode + ' · ' + run.mode"></div>
+            <div class="text-sm mt-1" x-show="run.summary" x-text="run.summary"></div>
+            <div class="text-xs neg mt-1" x-show="run.error" x-text="run.error"></div></div>
           <span class="badge text-sm" :class="QTS.statusBadge(run.status)" x-text="run.status"></span>
-          <template x-if="run.status==='proposed'"><div class="flex gap-2"><button class="btn-ok" @click="decide('approve')">Approve paper orders</button><button class="btn" @click="decide('reject')">Reject</button></div></template>
         </div>
-        <template x-if="run.proposals && run.proposals.length"><div class="card scroll-x"><div class="card-title">Proposals awaiting human approval</div>
-          <table class="t"><thead><tr><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Stop</th><th class="num">Target</th><th>Rationale</th></tr></thead>
-            <tbody><template x-for="p in run.proposals"><tr><td class="font-semibold" x-text="p.symbol"></td><td :class="p.side==='buy' ? 'pos' : 'neg'" x-text="p.side"></td><td class="num" x-text="p.qty"></td><td class="num" x-text="QTS.num(p.price)"></td><td class="num" x-text="QTS.num(p.stop_loss)"></td><td class="num" x-text="QTS.num(p.take_profit)"></td><td class="text-xs" x-text="p.rationale"></td></tr></template></tbody></table></div></template>
-        <template x-if="run.orders && run.orders.length"><div class="card text-sm"><div class="card-title">Paper orders sent</div><template x-for="o in run.orders"><div x-text="o.symbol + ': ' + (o.ok ? (o.order.type + ' ' + o.order.time_in_force + ' → ' + o.order.status) : 'blocked - ' + o.reason)"></div></template></div></template>
+        <template x-if="run.orders && run.orders.length"><div class="card text-sm scroll-x"><div class="card-title">Paper orders sent <a href="#/trading?tab=orders" class="ml-auto text-xs link">order blotter</a></div>
+          <table class="t"><thead><tr><th>Symbol</th><th>Purpose</th><th>Side</th><th class="num">Qty</th><th>Type</th><th>Status</th><th class="num">Fill</th><th>Note</th></tr></thead>
+            <tbody><template x-for="x in run.orders"><tr><td class="font-semibold" x-text="x.symbol"></td><td x-text="x.purpose"></td><td :class="x.side==='buy' ? 'pos' : 'neg'" x-text="x.side"></td><td class="num" x-text="x.qty"></td>
+              <td class="text-xs" x-text="(x.type || '') + ' ' + (x.time_in_force || '')"></td><td><span class="badge" :class="QTS.statusBadge(x.status)" x-text="x.status"></span></td><td class="num" x-text="QTS.num(x.filled_avg_price)"></td><td class="text-xs neg" x-text="x.error || ''"></td></tr></template></tbody></table></div></template>
         <div class="tabs !mb-2"><template x-for="s in run.symbols"><a class="tab" :class="symSel===s && 'active'" @click="symSel=s" x-text="s"></a></template></div>
-        <div class="grid md:grid-cols-3 gap-2">
-          <template x-for="t in traceFor(symSel)" :key="t.agent + (t.round||'')">
-            <div class="agent-card" :class="t.control ? 'border-dashed' : (t.stage==='orchestration' ? 'md:col-span-3 border-brand-500' : '')">
-              <div class="flex items-center gap-1 mb-1"><span class="font-semibold" x-text="t.title"></span><span class="ml-auto badge" :class="brainBadge(t.brain)" x-text="t.brain"></span></div>
-              <div class="text-[10px] muted mb-1" x-text="t.stage + (t.tools && t.tools.length ? ' · tools: ' + t.tools.join(', ') : '') + ' · ' + t.ms + ' ms'"></div>
-              <template x-if="out(t).score !== undefined"><div>score <b :class="QTS.cls(out(t).score)" x-text="QTS.num(out(t).score)"></b> - <span x-text="out(t).summary"></span></div></template>
-              <template x-for="k in ['signals','events','risks','points','notes','watch']"><ul x-show="out(t)[k] && out(t)[k].length" class="list-disc ml-4 mt-1"><template x-for="x in (out(t)[k]||[])"><li x-text="x"></li></template></ul></template>
-              <template x-if="t.rounds"><div class="text-[11px] muted mt-1" x-text="'Debate: 2 rounds (round 2 rebuts the other side) · conviction ' + QTS.num(out(t).conviction)"></div></template>
-              <template x-if="out(t).action"><div class="mt-1"><b x-text="out(t).action.toUpperCase()"></b> · confidence <span x-text="out(t).confidence"></span> · size <span x-text="QTS.pct(out(t).size_pct,1)"></span><div class="text-xs" x-text="out(t).rationale"></div></div></template>
-              <template x-if="out(t).decision"><div class="mt-1"><span class="badge" :class="QTS.statusBadge(out(t).decision) || 'badge-muted'" x-text="out(t).decision"></span> <span x-show="out(t).qty !== undefined" x-text="'qty ' + out(t).qty"></span> <span class="text-xs" x-text="out(t).summary || ''"></span></div></template>
-              <div x-show="out(t).note" class="text-xs" x-text="out(t).note"></div>
-              <div x-show="t.error" class="text-[11px] text-amber-600 mt-1" x-text="'LLM error, rule fallback used: ' + t.error"></div>
+        <div class="grid md:grid-cols-2 gap-2">
+          <template x-for="t in traceFor(symSel)" :key="t.symbol + t.agent">
+            <div class="agent-card" :class="{ 'md:col-span-2': !['finance_research','news_sentiment'].includes(t.agent), 'border-dashed': t.control, 'border-brand-500': t.agent === 'lead' }">
+              <div class="flex items-center gap-1 mb-1"><span class="text-[10px] badge badge-muted" x-text="step(t.agent)"></span><span class="font-semibold" x-text="t.title"></span><span class="text-[10px] muted" x-show="t.scope === 'run'">(whole run)</span><span class="ml-auto badge" :class="brainBadge(t.brain)" x-text="t.brain"></span></div>
+              <div class="text-[10px] muted mb-1" x-text="(t.stage || '') + (t.tools && t.tools.length ? ' · tools: ' + t.tools.join(', ') : '') + ' · ' + t.ms + ' ms'"></div>
+              <!-- lead -->
+              <template x-if="t.agent === 'lead'"><div class="space-y-1">
+                <div x-show="out(t).summary"><b>Summary:</b> <span x-text="out(t).summary"></span></div>
+                <div class="text-xs"><b>Plan</b><span class="muted" x-show="out(t).focus" x-text="' - focus: ' + out(t).focus"></span></div>
+                <ol class="list-decimal ml-5 text-xs"><template x-for="x in (out(t).plan || [])"><li x-text="x"></li></template></ol></div></template>
+              <!-- finance research -->
+              <template x-if="t.agent === 'finance_research'"><div class="space-y-1">
+                <div>score <b :class="QTS.cls(out(t).score)" x-text="QTS.num(out(t).score)"></b> - <span x-text="out(t).summary"></span></div>
+                <div class="scroll-x"><table class="t text-[11px]"><thead><tr><th>Interval</th><th class="num">Bars</th><th class="num">Close</th><th>Trend</th><th class="num">RSI</th><th class="num">20-bar</th><th>Source</th></tr></thead>
+                  <tbody><template x-for="iv in ['1min','15min','1h','1day']"><tr>
+                    <td x-text="iv"></td><td class="num" x-text="(fin(t).intervals[iv] || {}).bars || 0"></td><td class="num" x-text="QTS.num((fin(t).intervals[iv] || {}).close)"></td>
+                    <td x-text="(fin(t).intervals[iv] || {}).trend || '–'"></td><td class="num" x-text="QTS.num((fin(t).intervals[iv] || {}).rsi14, 1)"></td>
+                    <td class="num" :class="QTS.cls((fin(t).intervals[iv] || {}).ret_20bars)" x-text="QTS.pct((fin(t).intervals[iv] || {}).ret_20bars, 1)"></td>
+                    <td class="text-[10px] whitespace-nowrap" :class="(fin(t).sources.candles[iv] || {}).error ? 'muted' : ''" :title="(fin(t).sources.candles[iv] || {}).error || ''" x-text="srcText(fin(t).sources.candles[iv])"></td></tr></template></tbody></table></div>
+                <div class="text-[11px]"><b>Yahoo Finance:</b> <span x-text="fin(t).sources.yahoo || '–'"></span> · <b>Equibles:</b> <span x-text="fin(t).sources.equibles || '–'"></span></div>
+                <div class="text-[11px]" x-show="Object.keys(fin(t).fundamentals || {}).length"><template x-for="(v, k) in (fin(t).fundamentals || {})"><span class="mr-2"><span class="muted" x-text="k + ' '"></span><span x-text="fmtFund(k, v)"></span></span></template></div>
+                <template x-for="k in ['highlights','risks']"><div x-show="(out(t)[k] || []).length"><div class="text-[10px] uppercase muted" x-text="k"></div><ul class="list-disc ml-4 text-xs"><template x-for="x in (out(t)[k] || [])"><li x-text="x"></li></template></ul></div></template></div></template>
+              <!-- news sentiment -->
+              <template x-if="t.agent === 'news_sentiment'"><div class="space-y-1">
+                <div>score <b :class="QTS.cls(out(t).score)" x-text="QTS.num(out(t).score)"></b> - <span x-text="out(t).summary"></span></div>
+                <div class="text-[11px]" x-show="out(t).lexicon">lexicon base: overall <b x-text="QTS.num((out(t).lexicon || {}).overall)"></b>
+                  · Reddit <span x-text="QTS.num(((out(t).lexicon || {}).reddit || {}).score) + ' (' + (((out(t).lexicon || {}).reddit || {}).n || 0) + ')'"></span>
+                  · NewsAPI <span x-text="QTS.num(((out(t).lexicon || {}).newsapi || {}).score) + ' (' + (((out(t).lexicon || {}).newsapi || {}).n || 0) + ', ' + (((out(t).lexicon || {}).newsapi || {}).source || '') + ')'"></span></div>
+                <template x-for="src in ['reddit','newsapi']"><div x-show="((out(t).notable || {})[src] || []).length"><div class="text-[10px] uppercase muted" x-text="src === 'reddit' ? 'Reddit' : 'NewsAPI / headlines'"></div>
+                  <ul class="list-disc ml-4 text-xs"><template x-for="x in ((out(t).notable || {})[src] || [])"><li x-text="x"></li></template></ul></div></template></div></template>
+              <!-- trading strategy -->
+              <template x-if="t.agent === 'trading_strategy'"><div class="space-y-1">
+                <div><span class="badge badge-info" x-text="out(t).mode"></span> <span x-text="(out(t).algorithms || []).join(', ')"></span> · composite <b :class="QTS.cls((out(t).composite || {}).composite)" x-text="QTS.num((out(t).composite || {}).composite)"></b>
+                  <span class="text-[11px] muted" x-text="'= ' + QTS.pct(1 - ((out(t).composite || {}).sentiment_weight || 0) - ((out(t).composite || {}).finance_weight || 0), 0) + ' algorithms (' + QTS.num((out(t).composite || {}).algorithms_score) + ') + ' + QTS.pct((out(t).composite || {}).sentiment_weight, 0) + ' sentiment + ' + QTS.pct((out(t).composite || {}).finance_weight, 0) + ' finance'"></span></div>
+                <div class="text-xs" x-text="out(t).rationale"></div>
+                <div class="scroll-x"><table class="t text-[11px]"><thead><tr><th>Algorithm</th><th class="num">Weight</th><th class="num">Score</th><th>Vote</th><th>Per interval</th></tr></thead>
+                  <tbody><template x-for="a in Object.keys(out(t).votes || {})"><tr :class="(out(t).weights || {})[a] ? '' : 'opacity-50'">
+                    <td x-text="a"></td><td class="num" x-text="QTS.pct((out(t).weights || {})[a] || 0, 0)"></td><td class="num" :class="QTS.cls(out(t).votes[a].score)" x-text="QTS.num(out(t).votes[a].score)"></td>
+                    <td x-text="voteText(out(t).votes[a].vote)"></td><td class="text-[10px]" x-text="Object.entries(out(t).votes[a].intervals || {}).map((e) => e[0] + ' ' + voteText(e[1])).join(' · ')"></td></tr></template></tbody></table></div>
+                <div class="text-[11px] muted" x-text="out(t).guidance_run_id ? 'Guidance from the Strategy Review of run #' + out(t).guidance_run_id : 'Default guidance (no review yet)'"></div></div></template>
+              <!-- signal -->
+              <template x-if="t.agent === 'signal_generation'"><div class="space-y-1">
+                <div><span class="badge text-sm" :class="QTS.statusBadge(out(t).signal)" x-text="out(t).signal || 'null'"></span> confidence <b x-text="QTS.num(out(t).confidence)"></b>
+                  <span class="text-[11px] muted" x-text="'composite ' + QTS.num(out(t).composite) + ' vs long > ' + QTS.num((out(t).thresholds || {}).long_above) + ' / short < ' + QTS.num((out(t).thresholds || {}).short_below)"></span></div>
+                <div class="text-xs" x-text="out(t).rationale"></div></div></template>
+              <!-- trader -->
+              <template x-if="t.agent === 'stock_trader'"><div class="space-y-1">
+                <div><span class="badge" :class="QTS.statusBadge(out(t).action)" x-text="out(t).action"></span> <span class="text-xs" x-text="'position ' + out(t).position_before + ' → ' + out(t).position_after + ' · ' + (out(t).account || '') + ' @ ~' + QTS.num(out(t).price)"></span></div>
+                <template x-for="x in (out(t).orders || [])"><div class="text-xs"><span :class="x.ok ? 'pos' : 'neg'" x-text="(x.ok ? '✓ ' : '✗ ') + x.purpose + ': ' + x.side + ' ' + x.qty + ' → ' + (x.status || '') + (x.type ? ' (' + x.type + ' ' + (x.time_in_force || '') + ')' : '')"></span><span class="neg" x-show="x.error" x-text="' - ' + x.error"></span></div></template>
+                <ul class="list-disc ml-4 text-xs muted"><template x-for="x in (out(t).notes || [])"><li x-text="x"></li></template></ul></div></template>
+              <!-- performance -->
+              <template x-if="t.agent === 'performance_analysis'"><div class="space-y-1">
+                <div x-text="out(t).summary"></div>
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-1 text-[11px]"><template x-for="k in PERF_KEYS"><div class="rounded border border-slate-200 dark:border-slate-700 p-1"><div class="muted" x-text="k[1]"></div><b x-text="fmtMetric(k[0], (out(t).metrics || {})[k[0]])"></b></div></template></div>
+                <ul class="list-disc ml-4 text-xs"><template x-for="x in (out(t).observations || [])"><li x-text="x"></li></template></ul></div></template>
+              <!-- review -->
+              <template x-if="t.agent === 'strategy_review'"><div class="space-y-1">
+                <div x-text="out(t).summary"></div>
+                <div class="text-xs">long above <b x-text="QTS.num(out(t).long_above)"></b> · short below <b x-text="QTS.num(out(t).short_below)"></b> · sentiment <b x-text="QTS.pct(out(t).sentiment_weight, 0)"></b> · finance <b x-text="QTS.pct(out(t).finance_weight, 0)"></b> · preferred <b x-text="(out(t).preferred_algorithms || []).join(', ')"></b></div>
+                <div class="flex flex-wrap gap-1"><template x-for="(w, a) in (out(t).weights || {})"><span class="badge badge-muted" x-text="a + ' ' + QTS.pct(w, 0)"></span></template></div>
+                <ul class="list-disc ml-4 text-xs"><template x-for="x in (out(t).notes || [])"><li x-text="x"></li></template></ul></div></template>
+              <div x-show="t.control && out(t).note" class="text-xs" x-text="out(t).note"></div>
+              <div x-show="t.error" class="text-[11px] text-amber-600 mt-1" x-text="(t.agent === 'stock_trader' ? 'Broker: ' : 'Error (rule fallback used if an LLM failed): ') + t.error"></div>
             </div>
           </template>
         </div>
       </div></template>
     </div>
+  </div>
+
+  <!-- performance -->
+  <div x-show="tab==='performance'" class="space-y-4">
+    <div x-show="!perf.available" class="card empty" x-text="perf.note || 'Loading…'"></div>
+    <template x-if="perf.available"><div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+        <template x-for="k in PERF_KEYS.concat([['equity','Equity'],['round_trips','Round trips']])"><div class="card kpi"><span class="k" x-text="k[1]"></span><span class="v text-lg" :class="['total_return','daily_return_last'].includes(k[0]) ? QTS.cls(perf[k[0]]) : ''" x-text="fmtMetric(k[0], perf[k[0]])"></span></div></template>
+      </div>
+      <div class="grid lg:grid-cols-3 gap-4">
+        <div class="card lg:col-span-2"><div class="card-title">Agent account equity <span class="card-sub" x-text="perf.account + ' · ' + perf.broker + ' · as of ' + (perf.as_of || '').slice(0, 16)"></span></div><div class="h-56"><canvas x-ref="eq"></canvas></div></div>
+        <div class="card text-sm"><div class="card-title">How it is computed</div>
+          <ul class="list-disc ml-4 text-xs space-y-1"><li>Total return = equity now / starting equity - 1 (start: <span x-text="QTS.usd(perf.starting_equity)"></span>)</li>
+            <li>Daily returns: last equity of each day; Sharpe = mean / stdev x √252 (needs 2+ days)</li><li>Max drawdown over every equity snapshot</li>
+            <li>Win rate over closed round trips; trades = fills; exposure = share of snapshots holding a position</li></ul>
+          <p class="text-xs muted mt-2">Computed in code by the Performance Analysis agent after every run; the agent only explains it.</p></div>
+      </div>
+      <div class="grid lg:grid-cols-3 gap-4">
+        <div class="card scroll-x"><div class="card-title">Daily returns</div><table class="t"><thead><tr><th>Day</th><th class="num">Return</th></tr></thead><tbody><template x-for="d in (perf.daily_returns || []).slice().reverse()"><tr><td x-text="d[0]"></td><td class="num" :class="QTS.cls(d[1])" x-text="QTS.pct(d[1])"></td></tr></template></tbody></table><div x-show="!(perf.daily_returns || []).length" class="text-xs muted">One day of history so far.</div></div>
+        <div class="card scroll-x"><div class="card-title">Open positions</div><table class="t"><thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Entry</th><th class="num">Last</th></tr></thead><tbody><template x-for="p in perf.positions || []"><tr><td x-text="p.symbol"></td><td class="num" :class="QTS.cls(p.qty)" x-text="p.qty"></td><td class="num" x-text="QTS.num(p.avg_entry_price)"></td><td class="num" x-text="QTS.num(p.last_price)"></td></tr></template></tbody></table><div x-show="!(perf.positions || []).length" class="text-xs muted">Flat.</div></div>
+        <div class="card scroll-x"><div class="card-title">Closed round trips</div><table class="t"><thead><tr><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Return</th></tr></thead><tbody><template x-for="r in (perf.recent_round_trips || []).slice().reverse()"><tr><td x-text="r.symbol"></td><td x-text="r.side"></td><td class="num" x-text="r.qty"></td><td class="num" :class="QTS.cls(r.return)" x-text="QTS.pct(r.return)"></td></tr></template></tbody></table><div x-show="!(perf.recent_round_trips || []).length" class="text-xs muted">None yet.</div></div>
+      </div>
+    </div></template>
+  </div>
+
+  <!-- guidance -->
+  <div x-show="tab==='guidance'" class="grid lg:grid-cols-2 gap-4">
+    <div class="card space-y-2 text-sm"><div class="card-title">Current strategy guidance <span class="card-sub" x-text="gd.current && gd.current.run_id ? 'written by the Strategy Review of run #' + gd.current.run_id : 'default (no review yet)'"></span></div>
+      <template x-if="gd.current"><div class="space-y-2">
+        <div x-text="gd.current.summary"></div>
+        <div class="text-xs">long above <b x-text="QTS.num(gd.current.long_above)"></b> · short below <b x-text="QTS.num(gd.current.short_below)"></b> · sentiment weight <b x-text="QTS.pct(gd.current.sentiment_weight, 0)"></b> · finance weight <b x-text="QTS.pct(gd.current.finance_weight, 0)"></b></div>
+        <template x-for="(w, a) in gd.current.weights"><div class="flex items-center gap-2 text-xs"><span class="w-20" x-text="a"></span><div class="flex-1 af-bar"><div :style="'width:' + Math.round(w * 100) + '%'"></div></div><span class="w-10 text-right" x-text="QTS.pct(w, 0)"></span><span class="w-28 muted" x-text="(gd.current.hit_rates || {})[a] ? 'hit ' + QTS.pct(gd.current.hit_rates[a].hit_rate, 0) + ' (' + gd.current.hit_rates[a].n + ')' : ''"></span></div></template>
+        <div class="text-xs"><b>Preferred:</b> <span x-text="(gd.current.preferred_algorithms || []).join(', ')"></span></div>
+        <ul class="list-disc ml-4 text-xs"><template x-for="x in (gd.current.notes || [])"><li x-text="x"></li></template></ul>
+        <p class="text-xs muted">The Trading Strategy agent reads this on the next run: the weights pick the algorithm mix and the thresholds decide when the Signal Generation agent says long or short.</p></div></template></div>
+    <div class="card scroll-x"><div class="card-title">Guidance history</div>
+      <div x-show="!(gd.history || []).length" class="text-xs muted">No reviews yet.</div>
+      <template x-for="h in (gd.history || [])"><div class="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-xs"><span class="muted" x-text="QTS.ago(h.created_at)"></span> - <span x-text="h.content"></span></div></template></div>
   </div>
 
   <!-- always on -->
   <div x-show="tab==='always'" class="grid lg:grid-cols-2 gap-4">
     <div class="card space-y-3">
       <div class="card-title">Always-on AI agent <span class="badge" :class="ao.enabled ? 'badge-ok' : 'badge-muted'" x-text="ao.enabled ? 'ON' : 'off'"></span></div>
-      <p class="text-sm">An <b>AI agent</b> in the course sense: it stands by 24/7. On every wake-up it refreshes headlines, runs the full multi-agent desk on its watch list, writes what it saw to <b>memory</b> and leaves proposals for your approval (or auto-approves inside the hard limits if you enable it).</p>
+      <p class="text-sm">An <b>AI agent</b> in the course sense: it stands by 24/7. On every wake-up it runs the whole 8-agent workflow on its watch list - research, sentiment, strategy, signal, <b>paper trade</b>, performance analysis and strategy review - and writes what it saw to <b>memory</b>. Each wake-up uses the guidance the previous review wrote.</p>
       <label class="inline-flex items-center gap-2"><input type="checkbox" x-model="ao.enabled"> enabled</label>
-      <div class="grid grid-cols-2 gap-2"><div><label class="label">Wake up every (minutes)</label><input class="input" type="number" x-model="ao.interval_min"></div>
-        <div><label class="label">Provider</label><select class="input" x-model="ao.provider"><option>auto</option><option>rules</option><option>codex</option><option>claude</option><option>openai</option></select></div></div>
+      <div class="grid grid-cols-3 gap-2"><div><label class="label">Wake up every (minutes)</label><input class="input" type="number" x-model="ao.interval_min"></div>
+        <div><label class="label">Provider</label><select class="input" x-model="ao.provider"><option>auto</option><option>rules</option><option>codex</option><option>claude</option><option>openai</option></select></div>
+        <div><label class="label">Data</label><select class="input" x-model="ao.data_mode"><option>auto</option><option>offline</option></select></div></div>
       <div><label class="label">Watch list</label><input class="input" :value="Array.isArray(ao.symbols) ? ao.symbols.join(', ') : ao.symbols" @input="ao.symbols = $event.target.value"></div>
-      <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="ao.refresh_news"> refresh news on every wake-up</label>
+      <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="ao.refresh_news"> refresh headlines on every wake-up</label>
       <div class="flex gap-2"><button class="btn-primary" @click="saveAO()">Save</button><button class="btn" @click="aoNow()" :disabled="busy">Wake it now</button></div>
       <div class="text-xs muted" x-text="'Worker heartbeat: ' + (ao.worker_heartbeat ? QTS.ago(ao.worker_heartbeat) : 'no worker running - start `uv run trader worker` or `trader serve --with-worker`')"></div>
       <div class="text-xs" x-show="ao.last_run" x-text="ao.last_run && ('Last always-on run #' + ao.last_run.id + ': ' + ao.last_run.status + ' ' + QTS.ago(ao.last_run.created_at))"></div>
     </div>
     <div class="card text-sm space-y-2"><div class="card-title">Agent risks and controls</div>
-      <table class="t"><thead><tr><th>Risk</th><th>Control in this app</th></tr></thead><tbody><template x-for="r in roles.risks"><tr><td class="font-semibold text-xs" x-text="r.risk"></td><td class="text-xs" x-text="r.control"></td></tr></template></tbody></table></div>
+      <table class="t"><thead><tr><th>Risk</th><th>Typical control</th></tr></thead><tbody><template x-for="r in roles.risks"><tr><td class="font-semibold text-xs" x-text="r.risk"></td><td class="text-xs" x-text="r.control"></td></tr></template></tbody></table>
+      <p class="text-xs muted">In this app the agent workflow trades automatically, without human approval or position / order caps (the owner's choice). What remains: paper trading only, the global kill switch, market-session rules, idempotent order ids, untrusted-data prompts, the full decision trace and memory.</p></div>
   </div>
 
-  <!-- limits -->
-  <div x-show="tab==='limits'" class="card space-y-3 max-w-2xl">
-    <div class="card-title">Hard risk limits <span class="card-sub">enforced in code after the agents - an LLM can never loosen them</span></div>
+  <!-- settings -->
+  <div x-show="tab==='settings'" class="card space-y-3 max-w-2xl">
+    <div class="card-title">Stock Trader settings</div>
     <div class="grid grid-cols-2 gap-3">
-      <div><label class="label">Max position (fraction of equity)</label><input class="input" type="number" step="0.01" x-model.number="limits.max_position_pct"></div>
-      <div><label class="label">Max order value $</label><input class="input" type="number" x-model.number="limits.max_order_value"></div>
-      <div><label class="label">Min confidence to buy</label><input class="input" type="number" step="0.05" x-model.number="limits.min_confidence"></div>
-      <div><label class="label">Max daily loss</label><input class="input" type="number" step="0.005" x-model.number="limits.max_daily_loss_pct"></div>
-      <div><label class="label">Stop (ATR multiples)</label><input class="input" type="number" step="0.5" x-model.number="limits.stop_atr"></div>
-      <div><label class="label">Target (ATR multiples)</label><input class="input" type="number" step="0.5" x-model.number="limits.target_atr"></div>
+      <div><label class="label">Position size (% of equity per order)</label><input class="input" type="number" step="1" min="0.1" max="100" x-model.number="pctInput"></div>
+      <div><label class="label">Order type</label><div class="text-sm pt-2" x-text="cfg.order_type"></div></div>
+      <div><label class="label">Broker</label><div class="text-sm" x-text="cfg.broker + ' - ' + cfg.account"></div></div>
+      <div><label class="label">Default data mode</label><div class="text-sm" x-text="cfg.data_mode + ' (AGENT_DATA_MODE)'"></div></div>
     </div>
-    <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="limits.auto_approve"> Auto-approve proposals that pass every hard limit (otherwise a human must approve)</label>
-    <button class="btn-primary" @click="saveLimits()">Save limits</button>
+    <p class="text-xs muted" x-text="cfg.note"></p>
+    <div class="flex gap-2"><button class="btn-primary" @click="saveCfg()">Save</button><a class="btn" href="#/settings">Kill switch (Settings)</a></div>
   </div>
 
   <!-- memory -->
@@ -137,10 +237,18 @@
 
   <!-- about -->
   <div x-show="tab==='about'" class="grid lg:grid-cols-2 gap-4">
-    <div class="card"><div class="card-title">The desk's agents</div>
-      <template x-for="r in roles.roles" :key="r.key"><div class="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm"><b x-text="r.title"></b> <span class="badge badge-muted" x-text="r.stage"></span><div class="text-xs muted" x-text="r.instructions"></div><div class="text-[11px]" x-show="r.tools.length" x-text="'tools: ' + r.tools.join(', ')"></div></div></template>
-      <p class="text-xs muted mt-2">Plus the deterministic <b>hard risk limits</b> gate between the risk manager and the portfolio manager. Modelled on TradingAgents (Xiao et al., 2024).</p></div>
-    <div class="card"><div class="card-title">Multi-agent trading systems in the course</div>
-      <template x-for="s in roles.systems"><div class="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm"><a class="link font-medium" :href="s.url" target="_blank" rel="noopener" x-text="s.name"></a><div class="text-xs muted" x-text="s.description"></div></div></template></div>
+    <div class="card"><div class="card-title">The eight agents, in flow order</div>
+      <template x-for="(r, i) in roles.roles" :key="r.key"><div class="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm"><b x-text="(i + 1) + '. ' + r.title"></b> <span class="badge badge-muted" x-text="r.stage"></span> <span class="badge badge-muted" x-text="r.scope === 'run' ? 'once per run' : 'per symbol'"></span>
+        <div class="text-xs muted" x-text="r.instructions"></div>
+        <div class="text-[11px]" x-show="r.tools.length" x-text="'tools: ' + r.tools.join(', ')"></div>
+        <div class="text-[11px]" x-text="'output: ' + Object.keys(r.output).join(', ')"></div>
+        <div class="text-[11px] muted" x-show="r.code" x-text="'computed in code: ' + r.code"></div></div></template>
+      <p class="text-xs muted mt-2">Finance Research and News Sentiment run in parallel (natively as Claude subagents / OpenAI agents-as-tools when that provider is active). Every agent has a deterministic rule brain, so the workflow runs with no AI login.</p></div>
+    <div class="space-y-4">
+      <div class="card"><div class="card-title">Trading algorithms (votes computed in code)</div>
+        <template x-for="(d, k) in roles.algorithms"><div class="text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0"><b x-text="k"></b> - <span class="text-xs" x-text="d"></span></div></template></div>
+      <div class="card"><div class="card-title">Multi-agent trading systems in the course</div>
+        <template x-for="s in roles.systems"><div class="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm"><a class="link font-medium" :href="s.url" target="_blank" rel="noopener" x-text="s.name"></a><div class="text-xs muted" x-text="s.description"></div></div></template></div>
+    </div>
   </div>
 </div>

@@ -11,9 +11,10 @@ import pytest
 _TMP = Path(tempfile.mkdtemp(prefix="qts-tests-"))
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP / 'test.db'}"
 os.environ["AI_PROVIDER"] = "rules"
+os.environ["AGENT_DATA_MODE"] = "offline"             # the agent workflow never touches the network in tests
 os.environ["DATA_DIR"] = str(_TMP / "data")          # never touch a real data/keys.env
 for k in ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY", "NEWSAPI_KEY", "TWELVEDATA_API_KEY", "EQUIBLES_API_KEY",
-          "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "WEBHOOK_SECRET"):
+          "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "WEBHOOK_SECRET", "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"):
     os.environ[k] = ""
 
 from trader import db as DB  # noqa: E402

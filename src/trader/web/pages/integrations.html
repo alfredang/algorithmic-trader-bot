@@ -20,9 +20,9 @@
                 </template>
                 <template x-if="f.kind !== 'select'">
                   <div class="flex gap-2">
-                    <input class="input mono flex-1" :id="it.key + f.name" :type="show[it.key + f.name] ? 'text' : 'password'" spellcheck="false" autocomplete="new-password"
-                           :placeholder="f.current ? 'saved - paste a new key to replace it' : 'paste your key here'" x-model="form(it.key)[f.name]">
-                    <button type="button" class="btn btn-xs" @click="show[it.key + f.name] = !show[it.key + f.name]" x-text="show[it.key + f.name] ? 'Hide' : 'Show'"></button>
+                    <input class="input mono flex-1" :id="it.key + f.name" :type="(f.kind === 'text' || show[it.key + f.name]) ? 'text' : 'password'" spellcheck="false" autocomplete="new-password"
+                           :placeholder="f.kind === 'text' ? 'blank keeps the current value' : (f.current ? 'saved - paste a new key to replace it' : 'paste your key here')" x-model="form(it.key)[f.name]">
+                    <button type="button" class="btn btn-xs" x-show="f.kind !== 'text'" @click="show[it.key + f.name] = !show[it.key + f.name]" x-text="show[it.key + f.name] ? 'Hide' : 'Show'"></button>
                   </div>
                 </template>
               </div>

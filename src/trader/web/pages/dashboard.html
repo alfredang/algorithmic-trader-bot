@@ -3,7 +3,7 @@
     <div class="flex-1 min-w-[16rem]">
       <div class="text-xs uppercase tracking-wider opacity-80">IBF course · Machine Learning 101 for Financial Trading</div>
       <h2 class="text-xl font-semibold">From hypothesis to backtest to automated paper trading</h2>
-      <p class="text-sm opacity-90">Data → indicators → strategies → research → multi-agent desk → risk → paper execution → analytics. Paper trading only.</p>
+      <p class="text-sm opacity-90">Data → indicators → strategies → research → multi-agent workflow → paper execution → analytics. Paper trading only.</p>
     </div>
     <div class="flex flex-wrap gap-2">
       <a href="#/labs" class="btn bg-white/10 border-white/30 text-white hover:bg-white/20">Course Labs</a>
@@ -27,7 +27,7 @@
     <div class="card kpi"><span class="k">Bots equity</span><span class="v" x-text="QTS.usd(totalEquity)"></span><span class="text-xs" :class="QTS.cls(totalPnl)" x-text="'P&L ' + QTS.usd(totalPnl)"></span></div>
     <div class="card kpi"><span class="k">Best backtest Sharpe <span class="qmark" :title="QTS.metricTip('sharpe')">?</span></span><span class="v" x-text="sum.best[0] ? QTS.num(sum.best[0].metrics.sharpe) : '–'"></span><span class="text-xs muted truncate" x-text="sum.best[0] ? sum.best[0].name : 'run a backtest'"></span></div>
     <div class="card kpi"><span class="k">Bars cached</span><span class="v" x-text="QTS.int(status.bars)"></span><span class="text-xs muted" x-text="status.data_mode"></span></div>
-    <div class="card kpi"><span class="k">Awaiting your approval</span><span class="v" x-text="pending"></span><a href="#/agents" class="text-xs link">AI agents desk</a></div>
+    <div class="card kpi"><span class="k">AI agents' paper return</span><span class="v" :class="QTS.cls(agentPerf.total_return)" x-text="agentPerf.available ? QTS.pct(agentPerf.total_return) : '–'"></span><a href="#/agents?tab=performance" class="text-xs link" x-text="agentPerf.available ? (agentPerf.trades + ' fills · ' + agentPerf.orders + ' orders') : 'run the multi-agent workflow'"></a></div>
   </div>
 
   <div class="grid lg:grid-cols-3 gap-4">
@@ -48,6 +48,15 @@
       <p class="text-xs muted mt-2" x-text="clock.note"></p>
       <p class="text-xs muted mt-2">A 09:00-18:30 Singapore class sits in the US overnight and pre-market sessions: bots then send <b>extended-hours LIMIT</b> orders (Alpaca 24/5) or queue GTC limits when the market is closed.</p>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">AI agents - performance of the multi-agent workflow <span class="card-sub" x-text="agentPerf.available ? (agentPerf.account + ' · ' + agentPerf.broker + ' · ' + QTS.ago(agentPerf.as_of)) : ''"></span><a href="#/agents?tab=performance" class="ml-auto text-xs link">details</a></div>
+    <div x-show="!agentPerf.available" class="empty">The agents have not traded yet. <a class="link" href="#/agents">Run the multi-agent workflow</a> - the Stock Trader agent places paper orders and the Performance Analysis agent scores them here.</div>
+    <template x-if="agentPerf.available"><div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-sm">
+      <template x-for="k in [['equity','Equity'],['total_return','Total return'],['daily_return_last','Last daily return'],['sharpe','Sharpe'],['max_drawdown','Max drawdown'],['win_rate','Win rate'],['trades','Trades (fills)'],['exposure','Exposure']]">
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-2"><div class="text-[11px] muted" x-text="k[1]"></div><div class="font-semibold" :class="['total_return','daily_return_last'].includes(k[0]) ? QTS.cls(agentPerf[k[0]]) : ''" x-text="fmtAgent(k[0], agentPerf[k[0]])"></div></div></template>
+    </div></template>
   </div>
 
   <div class="grid lg:grid-cols-2 gap-4">

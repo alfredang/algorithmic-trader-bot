@@ -356,22 +356,23 @@ class SentimentStrategy(Strategy):
         return sig
 
 
-# =========================================================================== agentic (rule brain, backtestable)
+# =========================================================================== agentic (rule brain, backtestable stand-in for the AI Agents workflow)
 class AgenticDesk(Strategy):
-    name = "Agentic multi-agent desk (rule brain)"
-    params = {"buy_above": {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Debate balance to buy"},
-              "sell_below": {"default": -0.25, "min": -1.0, "max": 0.0, "step": 0.05, "help": "Debate balance to sell"},
-              "news_weight": {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Weight of the news analyst"}}
+    name = "Agentic multi-agent workflow (rule brain)"
+    params = {"buy_above": {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Composite score to buy"},
+              "sell_below": {"default": -0.25, "min": -1.0, "max": 0.0, "step": 0.05, "help": "Composite score to sell"},
+              "news_weight": {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.05, "help": "Weight of the news sentiment"}}
     info = StrategyInfo("agentic_desk", name, labs=[20], category="Sentiment and AI agents", kind="agentic", model_type="LLM and agentic", family="Agentic AI",
                         holding_period="Swing",
-                        summary="The analyst desk (technical + sentiment analysts, bull/bear debate, trader, risk manager) "
-                                "replayed bar by bar with its deterministic rule brain so it can be backtested.",
-                        how="Technical and sentiment analysts score the stock; bull and bear researchers debate; the "
-                            "trader acts on the debate balance; the risk manager enforces hard limits.",
-                        rule="Balance = (1 - w) x technical + w x news. Buy above the threshold, sell below.",
-                        works_best="As a transparent baseline for the LLM desk (AI Agents page) - same roles, no LLM.",
+                        summary="A backtestable stand-in for the AI Agents workflow: a trend / MACD / RSI technical "
+                                "score blended with news sentiment, replayed bar by bar with a deterministic rule brain.",
+                        how="Like the Trading Strategy agent, it mixes algorithm votes (EMA trend, MACD, RSI) with the "
+                            "news-sentiment score into one composite; like the Signal Generation agent, it trades when "
+                            "the composite crosses a threshold.",
+                        rule="Composite = (1 - w) x technical + w x news. Buy above the threshold, sell below.",
+                        works_best="As a transparent baseline for the LLM workflow (AI Agents page) - same idea, no LLM.",
                         watch_out="LLM agents cannot be backtested cheaply or reproducibly; hallucination and prompt "
-                                  "injection; hard limits must stay outside the model.",
+                                  "injection. This baseline is long / flat only; the live agents may also sell short.",
                         course_ref="TOPIC 1 · K1", needs=["sentiment"], default_symbols=["NVDA"])
 
     def generate_signals(self, data):

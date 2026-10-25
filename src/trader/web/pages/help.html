@@ -28,7 +28,7 @@
     <div class="card-title">AI agents vs agentic AI</div>
     <template x-if="g.agentic_vs_agents.comparison"><div class="scroll-x"><table class="t"><tbody><template x-for="row in g.agentic_vs_agents.comparison"><tr><template x-for="c in row"><td x-text="c"></td></template></tr></template></tbody></table></div></template>
     <template x-if="g.agentic_vs_agents.spectrum"><div><div class="font-semibold mb-1">The spectrum</div><template x-for="s in g.agentic_vs_agents.spectrum"><div><b x-text="s[0]"></b> - <span x-text="s[1]"></span></div></template></div></template>
-    <p class="muted">In this app: <b>agentic AI</b> is the capability of AI to plan and call tools, skills, memory and instructions (the analyst desk); an <b>AI agent</b> is a special class of agentic AI that stands by 24/7 and works all the time - for example OpenClaw, Hermes Agent or OpenAI Dots - which is what the Always-on agent mode does.</p>
+    <p class="muted">In this app: <b>agentic AI</b> is the capability of AI to plan and call tools, skills, memory and instructions (the 8-agent workflow on the AI Agents page); an <b>AI agent</b> is a special class of agentic AI that stands by 24/7 and works all the time - for example OpenClaw, Hermes Agent or OpenAI Dots - which is what the Always-on agent mode does.</p>
   </div>
 
   <div x-show="tab==='guide'" class="card prose-guide max-w-none" x-html="guide || '<div class=&quot;muted&quot;>Loading the user guide…</div>'"></div>

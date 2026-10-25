@@ -2,8 +2,9 @@
 
 **A quant / algorithmic trading simulator for learning, paper trading only.** It is the companion software for the IBF course
 **Machine Learning 101 for Financial Trading** by Tertiary Infotech Academy Pte Ltd. You can do all 20 course labs in the app:
-data, indicators, strategies, backtests with realistic costs, research and statistics, a multi-agent AI desk, and automated
-paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twelve Data, Equibles, NewsAPI or an AI login when you need them.
+data, indicators, strategies, backtests with realistic costs, research and statistics, an 8-agent AI trading workflow, and
+automated paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twelve Data, Equibles, NewsAPI, Reddit or
+an AI login when you need them.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
@@ -25,6 +26,7 @@ paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twel
 - [What's new in v2](#whats-new-in-v2)
 - [Features mapped to the course](#features-mapped-to-the-course)
 - [Architecture](#architecture)
+- [Multi-agent workflow](#multi-agent-workflow)
 - [Getting started](#getting-started)
   - [Option A: uv (Python only, SQLite)](#option-a-uv-python-only-sqlite)
   - [Option B: Docker Compose (Postgres)](#option-b-docker-compose-postgres)
@@ -44,8 +46,8 @@ paper trading. It runs offline with **zero keys**. Add Alpaca, TradingView, Twel
 v1 was a small Streamlit dashboard that used Google **Gemini** for "AI insights". v2 rebuilds it from scratch as a full
 course simulator:
 
-- **Gemini is gone.** The AI layer is now a **multi-agent desk** powered by **OpenAI Codex (Sign in with ChatGPT)**, the
-  **Claude Agent SDK** or the **OpenAI Agents SDK**. A deterministic rule-based desk is the fallback.
+- **Gemini is gone.** The AI layer is now an **8-agent trading workflow** powered by **OpenAI Codex (Sign in with
+  ChatGPT)**, the **Claude Agent SDK** or the **OpenAI Agents SDK**. Deterministic rule-based agents are the fallback.
 - **No coding needed.** **Idea → Strategy** turns a trading idea written in plain English into a validated strategy (the
   connected AI writes it; with no AI, a built-in interpreter covers the common strategy families), shows the rules it
   understood, and backtests it with costs in one click.
@@ -75,7 +77,7 @@ course simulator:
 | Course topic | In the app |
 |---|---|
 | **1. Foundations** - quant history, forms of data, big data, hypotheses, AI agents vs agentic AI | **Data:** Alpaca / Twelve Data / Equibles / yfinance / offline demo ingestion (13 symbols), multi-timeframe bars, Equibles company data (valuation, short interest, insider trades, ownership), data-quality checks (gaps, splits, duplicates, timezone), NewsAPI + Alpaca News headlines with VADER sentiment, and validation against TradingView (raw vs adjusted, SGX:D05 + AAPL). **Research > Hypothesis test:** H0/H1, Welch t-test, bootstrap CI, robustness grid and Bonferroni. **AI Agents** page: the taxonomy (agentic AI vs AI agent). |
-| **2. Indicators, strategies, metrics, TradingView & Alpaca** | **Chart:** TradingView Lightweight Charts with SMA/EMA, Bollinger, Donchian, VWAP, RSI, MACD, ATR, stochastic and OBV. **Strategy library:** buy-and-hold, SMA/EMA crossover, MACD, RSI, RSI(2), Bollinger reversion and breakout, Donchian, time-series and cross-sectional momentum, dip-buy, pairs, regime-filtered, ML (logistic / random forest / XGBoost), sentiment, VWAP/TWAP/POV execution, market making and the agentic desk, grouped by strategy type in lab order and filterable by lab. Each has course explanations and classification tags. **Pine Script v6 export.** **Order ticket:** market, limit, stop, bracket, time-in-force and 24/5 extended hours. **Analytics:** every course metric. |
+| **2. Indicators, strategies, metrics, TradingView & Alpaca** | **Chart:** TradingView Lightweight Charts with SMA/EMA, Bollinger, Donchian, VWAP, RSI, MACD, ATR, stochastic and OBV. **Strategy library:** buy-and-hold, SMA/EMA crossover, MACD, RSI, RSI(2), Bollinger reversion and breakout, Donchian, time-series and cross-sectional momentum, dip-buy, pairs, regime-filtered, ML (logistic / random forest / XGBoost), sentiment, VWAP/TWAP/POV execution, market making and the agentic-workflow baseline, grouped by strategy type in lab order and filterable by lab. Each has course explanations and classification tags. **Pine Script v6 export.** **Order ticket:** market, limit, stop, bracket, time-in-force and 24/5 extended hours. **Analytics:** every course metric. |
 | **3. ML, statistics, A/B testing** | **Research:** grid search with in-sample / out-of-sample decay heatmap and robust region, walk-forward optimisation, ML classifiers with walk-forward validation and in-sample hyperparameter tuning on a validation hold-out (in-sample vs validation vs out-of-sample AUC, feature importance), PCA + walk-forward K-means regimes with a gate, A/B test (Welch, paired, block-bootstrap Sharpe CI, decision, multiple-testing caution), and an Engle-Granger cointegration screen with a hedged pairs backtest. |
 | **4. End-to-end pipeline** - backtest with costs, forward test, diagnostics, reporting | **Backtest engine:** next-bar execution (no look-ahead), commission per share / bps / minimum, spread, slippage, SEC/FINRA fees on sells, borrow, long/short, multi-asset, position sizing (percent, fixed, vol-target, ATR), stop-loss / take-profit, gross vs net and break-even cost. **Paper trading bots:** scheduled, with risk checks and kill switches, an offline replay mode and live mode (Alpaca 24/5). **TradingView webhook.** **Diagnostics:** look-ahead, cost drag, overfitting, survivorship. **Tearsheet** PDF/CSV, backtest vs forward comparison, and a searchable **run history** (compare 2-5 runs, delete your own; course samples are protected). **Pipeline Map** of all 14 stages. |
 | **Course labs 1-20** | **Course Labs** page, driven by [`labs/course_labs.yaml`](labs/course_labs.yaml). It gives step-by-step checklists with deep links and presets, saves progress per user, lets you run every step on a **test symbol** of your choice, and offers optional "under the hood" Python. |
@@ -86,15 +88,14 @@ More highlights:
   figures, tooltips and recent events. The active bot cycle is highlighted over SSE, and stages that are disabled or running
   on an offline fallback are greyed out. A second view, **Strategy lifecycle**, shows one strategy's path from idea to
   analytics with pass/fail gates.
-- **Multi-agent AI desk.** It runs eight agents: technical, sentiment/news and fundamental-lite analysts, bull and bear
-  researchers who debate over two rounds, a trader, a risk manager, and a portfolio manager / orchestrator.
-  - **Hard risk limits run in code, outside the LLM.** No model output can loosen them.
-  - **A human must approve** every proposal before any paper order is sent. Auto-approve inside the limits is optional.
-  - Every agent's output is saved in a **decision trace**.
-  - The **Agent flow** view shows the desk as a live pipeline, one row per symbol: analysts → bull/bear debate → trader
-    → risk manager → hard limits (code) → portfolio manager → human approval. Each agent turns from waiting to working
-    to done (or rule fallback) as the run progresses, with its score or decision. Finished runs are redrawn from their trace.
-  - **Always-on agent mode** runs the desk around the clock on a schedule and writes memory.
+- **Multi-agent AI workflow.** Eight agents: a Lead Agent, Finance Research and News Sentiment (in parallel), Trading
+  Strategy, Signal Generation, Stock Trader, Performance Analysis and Strategy Review (see
+  [Multi-agent workflow](#multi-agent-workflow)).
+  - Indicator values and every algorithm's vote are **computed in code**; the agents choose the mix and explain it.
+  - The Stock Trader places **paper** market orders automatically (long = buy, short = sell short, null = no order).
+  - The Strategy Review's guidance feeds the next run's Trading Strategy agent - a **feedback loop**.
+  - Every agent call is saved in a **decision trace**; the **Agent flow** view shows the run live.
+  - **Always-on agent mode** runs the workflow around the clock on a schedule and writes memory.
 - **Custom strategies.** Write Python in the browser (CodeMirror) against a documented plugin API, starting from templates
   or a clone of a built-in strategy. The code is validated, test-run in a restricted subprocess, and checked for look-ahead.
   Saved strategies appear everywhere in the app.
@@ -113,12 +114,12 @@ flowchart LR
     Core["core: indicators · metrics · costs<br/>backtest engine · stats · pairs · regimes · ML"]
     Strat["strategies: 24 built-ins<br/>plugin API + sandbox · Pine export"]
     Broker["brokers: Simulator · Alpaca PAPER<br/>risk checks · kill switch"]
-    Agents["multi-agent desk<br/>Codex · Claude Agent SDK · OpenAI Agents SDK · rules"]
+    Agents["8-agent workflow<br/>Codex · Claude Agent SDK · OpenAI Agents SDK · rules"]
     WH["TradingView webhook"]
   end
   Worker["worker (APScheduler)<br/>bots · always-on agent · sim matching"]
   DB[("SQLite / Postgres<br/>SQLAlchemy 2 + Alembic")]
-  Ext["Alpaca · Twelve Data · Equibles · yfinance<br/>NewsAPI · TradingView"]
+  Ext["Alpaca · Twelve Data · Equibles · yfinance<br/>NewsAPI · Reddit · TradingView"]
   UI <--> API
   API --> Core & Strat & Broker & Agents & WH
   Worker --> Broker & Agents & Core
@@ -133,7 +134,7 @@ flowchart LR
 |---|---|
 | Backend | FastAPI, SQLAlchemy 2, Alembic, pydantic-settings, APScheduler, SSE |
 | Quant | pandas, NumPy, SciPy, scikit-learn, XGBoost, VADER, matplotlib (tearsheets) |
-| Brokers / data | alpaca-py (`paper=True`), Twelve Data REST, Equibles REST, yfinance, NewsAPI, bundled demo CSVs |
+| Brokers / data | alpaca-py (`paper=True`), Twelve Data REST, Equibles REST, yfinance, NewsAPI, Reddit OAuth API, bundled demo CSVs |
 | AI | `openai-codex` (Codex SDK, ChatGPT login), `claude-agent-sdk`, `openai-agents` (optional extra `ai`) |
 | Frontend | Static HTML/JS: Alpine.js 3, Tailwind (Play CDN), TradingView Lightweight Charts 5, Chart.js 4, CodeMirror 5, marked |
 | Deployment | uv (SQLite) or Docker Compose (`db` postgres:16, `backend`, `worker`, `frontend` nginx) |
@@ -141,6 +142,64 @@ flowchart LR
 The source code is organised as follows: `src/trader/core` (engine and maths), `strategies`, `data`, `sentiment`, `broker`,
 `bots`, `agents`, `services`, `api`, `web` (the SPA), `scheduler.py` and `cli.py`. Migrations are in `alembic/`, the lab
 manifest is in `labs/`, and documentation and screenshots are in `docs/`.
+
+## Multi-agent workflow
+
+**AI Agents > Multi-agent workflow** runs eight agents on each symbol you give it (for example NVDA, AAPL, SPY). The two
+research agents run in parallel; the Lead Agent, Performance Analysis and Strategy Review run once per run.
+
+```mermaid
+flowchart LR
+  Lead1["1 · Lead Agent<br/>plan"] --> FR & NS
+  subgraph Research["per symbol, in parallel"]
+    FR["2 · Finance Research<br/>Twelve Data 1min/15min/1h · Yahoo Finance · Equibles"]
+    NS["3 · News Sentiment<br/>Reddit · NewsAPI · lexicon"]
+  end
+  FR & NS --> TS["4 · Trading Strategy<br/>trend · momentum · volatility · VWAP · RSI · MACD<br/>(votes computed in code)"]
+  TS --> SG["5 · Signal Generation<br/>long | short | null"]
+  SG --> ST["6 · Stock Trader<br/>Alpaca PAPER market order<br/>(simulator without keys)"]
+  ST --> PA["7 · Performance Analysis<br/>return · Sharpe · drawdown · win rate"]
+  PA --> SR["8 · Strategy Review<br/>new guidance"]
+  SR -. "guidance (next run)" .-> TS
+  SR --> Lead2["1 · Lead Agent<br/>run summary"]
+```
+
+| # | Agent (`key`) | Inputs (tools / data) | Output (JSON) |
+|---|---|---|---|
+| 1 | **Lead** (`lead`) | symbols, data mode, strategy guidance, memory; at the end every agent's output | `plan`, `focus` (round 1); `summary` (round 2) |
+| 2 | **Finance Research** (`finance_research`) | candles at **1min / 15min / 1h** (Twelve Data; Alpaca or cached/demo bars as fallback) plus daily bars; **Yahoo Finance** profile ratios and income statement (yfinance); **Equibles** company data (valuation, short interest, insiders, ownership) | `score` -1..1, `summary`, `highlights`, `risks` (+ code: per-interval snapshot, source status, fundamentals) |
+| 3 | **News Sentiment** (`news_sentiment`) | **Reddit** posts (r/stocks, r/wallstreetbets, r/investing by default) and **NewsAPI** headlines, each with a VADER + finance-lexicon score | `score` -1..1, `summary`, `notable` per source (+ code: lexicon score per source) |
+| 4 | **Trading Strategy** (`trading_strategy`) | both research reports, the algorithm votes **computed in code** per interval, the latest Strategy Review guidance | `mode` single/mix, `algorithms`, `weights`, `sentiment_weight`, `finance_weight`, `rationale` (+ code: votes, composite score) |
+| 5 | **Signal Generation** (`signal_generation`) | the strategy and its composite, the guidance thresholds, the position | `signal` long / short / null, `confidence` 0..1, `rationale` |
+| 6 | **Stock Trader** (`stock_trader`) | the signal, the position, `agent_position_pct` | deterministic code: `action`, `orders`, `notes` |
+| 7 | **Performance Analysis** (`performance_analysis`) | the agent account's orders, fills and equity snapshots | `summary`, `observations` (+ code: total / daily returns, Sharpe, max drawdown, win rate, trades, exposure) |
+| 8 | **Strategy Review** (`strategy_review`) | the metrics, recent signals and how each algorithm's votes turned out | `weights`, `long_above`, `short_below`, `sentiment_weight`, `finance_weight`, `preferred_algorithms`, `notes`, `summary` |
+
+- **Composite score** = (1 - sentiment weight - finance weight) x the weighted algorithm scores + sentiment weight x the
+  sentiment score + finance weight x the finance score. Above `long_above` the signal is long, below `short_below` short,
+  otherwise null.
+- **Orders.** long -> buy; short -> sell short; an opposite position is closed first; null -> no order. Market orders in
+  the regular session (outside it the broker service sends a marketable limit order, as Alpaca requires), sized at
+  `agent_position_pct` of equity (default 10 %; AI Agents > Settings or `AGENT_POSITION_PCT`).
+  With Alpaca keys the orders go to your **Alpaca paper** account ("Agent account (Alpaca paper)"); without keys, or in
+  offline data mode, the built-in simulator is used. If the broker refuses an order (for example a symbol that cannot be
+  shorted), the error is recorded in the trace and the run carries on.
+- **No human approval and no agent risk limits** (the owner's choice for this course app). Paper trading only, the global
+  kill switch and market-session rules still apply.
+- **Feedback loop.** The Strategy Review writes its guidance to the `agent_strategy_guidance` setting (plus a `guidance`
+  memory note). The Trading Strategy agent reads it on the next run; the card shows which run's review it used.
+- **Performance** is persisted in the `agent_performance` setting and shown on the AI Agents > Performance panel and on the
+  Dashboard.
+- **Brains.** Every agent has a deterministic rule brain, so the workflow runs with no AI login. LLM output is sanitised to
+  each agent's JSON schema; values computed in code (votes, composite, metrics) can never be overwritten by a model. With
+  Claude or the OpenAI Agents SDK the two research agents run natively as subagents / agents-as-tools. All market data,
+  posts and headlines are passed as untrusted data, and the prompts tell the models to ignore instructions inside them.
+- **Data mode.** `auto` uses every configured source; `offline` makes no network call (cached / bundled demo bars, stored or
+  synthetic demo headlines, no Reddit / Yahoo / Equibles).
+
+API: `POST /api/agents/run` `{"symbols": ["NVDA"], "provider": "rules", "data_mode": "offline"}`, `GET /api/agents/runs`,
+`GET /api/agents/live/{live_id}`, `GET /api/agents/performance`, `GET /api/agents/guidance`,
+`GET|PUT /api/agents/settings` (`position_pct`), `GET /api/reddit?symbol=NVDA`. CLI: `uv run trader agents --symbols NVDA --data offline`.
 
 ## Getting started
 
@@ -220,9 +279,9 @@ You can re-open the wizard from **Settings**.
 | **OpenAI Codex**, Sign in with ChatGPT (subscription) | Your own local Codex CLI login | `uv sync --extra ai` (it bundles the Codex CLI) or install the Codex CLI. Run `codex login`, choose **Sign in with ChatGPT**, and check with `codex login status`. The app asks Codex only *whether* you are logged in. It never reads, stores or proxies tokens, which stay in `~/.codex` or your OS keyring. |
 | **Claude**, Claude Agent SDK | `ANTHROPIC_API_KEY` (or Bedrock / Vertex env vars) | Create a key at console.anthropic.com. **Claude.ai subscription login is not offered** (see the terms note below). |
 | **OpenAI Agents SDK** | `OPENAI_API_KEY` | Create a key at platform.openai.com. |
-| Rule-based | none | Always available. This is the deterministic multi-role desk. |
+| Rule-based | none | Always available: a deterministic rule brain for each of the eight agents. |
 
-`AI_PROVIDER=auto` uses Codex if you are logged in, then any configured API key, then the rule-based desk. You can also
+`AI_PROVIDER=auto` uses Codex if you are logged in, then any configured API key, then the rule-based agents. You can also
 choose a provider for each run on the AI Agents page.
 
 **Provider terms.** Read these before you enable a provider.
@@ -254,7 +313,7 @@ choose a provider for each run on the AI Agents page.
 | `unable to open database file` / DB errors | SQLite: check that `DATABASE_URL` points to a writable path (the default `./data/` is created automatically). Docker: wait until `db` is healthy (`docker compose ps`) and look at `docker compose logs backend`. A Postgres URL needs the `postgresql+psycopg://` scheme. |
 | Empty pages / no backtests | Run `uv run trader seed` (Docker: `docker compose exec backend trader seed`) or use **Settings > Load demo data**. |
 | Integrations show "not configured" | Paste the key into its card on **Integrations** and press **Save & test** (used at once, stored in `data/keys.env`). Keys in `.env` are read at start-up. Keys are never stored in the database. |
-| AI desk says `rules` / "not logged in" | Run `codex login` (Sign in with ChatGPT) on the machine that runs the app, or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. Install the SDKs with `uv sync --extra ai`. |
+| AI Agents say `rules` / "not logged in" | Run `codex login` (Sign in with ChatGPT) on the machine that runs the app, or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. Install the SDKs with `uv sync --extra ai`. |
 | Orders stay `accepted` / not filled | The US market is closed, so orders queue as GTC limits. Outside 09:30-16:00 ET, only extended-hours **limit** orders are accepted (Singapore class hours fall in the US overnight session). In the simulator use **Process working orders** or the ticket's *Session (sim)* override. Replay bots fill on their own bars. |
 | A running bot does nothing | Check that a worker is running (`--with-worker`, `trader worker`, or the Docker `worker` service), and that neither the global kill switch nor the bot's kill switch is ON. |
 | A custom strategy fails validation | Read the issue list. Only allow-listed imports are permitted, with no dunder attributes and no `open`/`eval`. Code that runs longer than `SANDBOX_TIMEOUT_S` is stopped. |
@@ -278,13 +337,17 @@ Every variable is optional. See [`.env.example`](.env.example).
 | `TWELVEDATA_API_KEY` | blank | Twelve Data time series. |
 | `NEWSAPI_KEY` | blank | NewsAPI.org headlines. |
 | `EQUIBLES_API_KEY` | blank | Equibles daily prices and company data (valuation, short interest, insiders, ownership). |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | blank | Reddit app credentials (application-only OAuth) for the News Sentiment agent. |
+| `REDDIT_USER_AGENT` | `python:algorithmic-trader-bot:v2 (course app)` | Unique user agent Reddit asks for - include your Reddit username. |
+| `REDDIT_SUBREDDITS` | `stocks,wallstreetbets,investing` | Subreddits the News Sentiment agent searches. |
 | `AI_PROVIDER` | `auto` | `auto`, `rules`, `codex`, `claude` or `openai`. |
 | `ANTHROPIC_API_KEY` | blank | Claude Agent SDK (API key auth). |
 | `CLAUDE_MODEL` / `CLAUDE_MODEL_DEEP` | `claude-sonnet-5-5` / `claude-opus-5-5` | Claude models. |
 | `OPENAI_API_KEY` | blank | OpenAI Agents SDK. |
 | `OPENAI_MODEL` / `CODEX_MODEL` | blank | Blank means the SDK / CLI default. |
 | `AGENT_TIMEOUT_S` | `120` | Per-agent LLM timeout. |
-| `AGENT_AUTO_APPROVE` | `false` | Auto-approve proposals that pass the hard limits. |
+| `AGENT_POSITION_PCT` | `0.10` | Stock Trader agent order size as a fraction of equity (the AI Agents > Settings value overrides it). |
+| `AGENT_DATA_MODE` | `auto` | Default data mode of the agent workflow: `auto` (configured sources) or `offline` (no network). |
 | `ALWAYS_ON_INTERVAL_MIN` | `60` | Default wake-up interval of the always-on agent. |
 | `WEBHOOK_SECRET` | blank | TradingView shared secret. If blank, one is generated locally on first use. |
 | `SANDBOX_TIMEOUT_S` / `SANDBOX_MEMORY_MB` | `30` / `1024` | Custom-strategy sandbox limits. |
@@ -319,6 +382,14 @@ Every variable is optional. See [`.env.example`](.env.example).
     dividend-adjusted like the other sources). Intraday bars are not available.
   - The free plan allows 100 requests a day, shared with Equibles' MCP server, and resets at 00:00 UTC. The
     connection test calls `/v1/market/status` (1 request).
+- **Reddit.** At reddit.com/prefs/apps choose **create another app**, type **script**, any redirect URI (for example
+  `http://localhost:8000`). Paste the client id (under the app name) and the secret into the Reddit card on **Integrations**
+  and press **Save & test**, or set `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` in `.env`.
+  - The app uses Reddit's **application-only OAuth** (client credentials): `POST https://www.reddit.com/api/v1/access_token`,
+    then `GET https://oauth.reddit.com/r/<sub>/search?q=<symbol or company>&restrict_sr=1&sort=new&t=week`. It reads public
+    posts only and never logs in as you. Tokens are cached for their lifetime, posts for 15 minutes.
+  - `GET /api/reddit?symbol=NVDA` returns the posts with their lexicon scores. Without keys it returns
+    `configured: false` and the News Sentiment agent falls back to NewsAPI / the demo headlines.
 - **NewsAPI.** Set `NEWSAPI_KEY`. The app uses `/v2/everything` with the `X-Api-Key` header. The free Developer plan is for
   development only (24 h delay, 100 requests/day).
 - **LLM providers.** See [AI login](#ai-login-optional). The Integrations page shows the login status, the exact login
@@ -372,9 +443,9 @@ class TrendWithRSIFilter(Strategy):
 | ![Backtest](docs/screenshots/backtest.png) Backtest | ![Grid](docs/screenshots/research_grid.png) Strategy search (decay heatmap) |
 | ![A/B](docs/screenshots/research_abtest.png) A/B test | ![Diagnostics](docs/screenshots/research_diagnostics.png) Diagnostics (Lab 18 exhibit) |
 | ![Regimes](docs/screenshots/research_regime.png) Regimes | ![Trading](docs/screenshots/trading.png) Paper-trading bot |
-| ![Analytics](docs/screenshots/analytics.png) Analytics | ![Agents](docs/screenshots/agents.png) Multi-agent desk (Codex run) |
+| ![Analytics](docs/screenshots/analytics.png) Analytics | ![Agents](docs/screenshots/agents.png) AI Agents: the eight agent cards |
 | ![Integrations](docs/screenshots/integrations.png) Integrations | ![Dark mode](docs/screenshots/backtest_dark.png) Dark mode |
-| ![Agent flow](docs/screenshots/agents_flow.png) Agent flow (per-agent status) | |
+| ![Agent flow](docs/screenshots/agents_flow.png) Agent flow (8-agent workflow, live) | |
 
 There are lab-by-lab screenshots in [`docs/screenshots/labs/`](docs/screenshots/labs/).
 
@@ -383,7 +454,8 @@ There are lab-by-lab screenshots in [`docs/screenshots/labs/`](docs/screenshots/
 ```bash
 uv sync                   # dev tools (pytest, ruff) are in the default dev group
 uv run pytest             # offline suite - indicators, metrics, backtest, costs, pairs, A/B, risk, broker, strategies,
-                          #   multi-agent orchestration and live agent progress (LLM mocked), API endpoints, in-app keys, Equibles (HTTP mocked),
+                          #   the 8-agent workflow end to end (rule brains / mocked LLM, simulator broker), live agent progress,
+                          #   API endpoints, in-app keys, Equibles and Reddit (HTTP mocked),
                           #   migrations
 uv run ruff check src tests alembic
 uv run alembic revision --autogenerate -m "..."   # after changing models
@@ -401,6 +473,7 @@ MIT licence (see [LICENSE](LICENSE)). It was built as course software for **Mach
 
 - **Demo data:** Yahoo Finance via yfinance, for training use only (see `src/trader/data/demo/README.md`).
 - **Demo headlines:** synthetic.
-- **Multi-agent desk:** inspired by TradingAgents (Xiao et al., 2024, arXiv:2412.20138).
+- **Multi-agent workflow:** the course also discusses TradingAgents (Xiao et al., 2024, arXiv:2412.20138), which inspired
+  the app's first agent desk.
 - **Trademarks:** Alpaca, TradingView, OpenAI, Anthropic and other names are trademarks of their owners. This project is not
   affiliated with or endorsed by them.

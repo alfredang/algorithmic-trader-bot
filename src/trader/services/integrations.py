@@ -46,6 +46,15 @@ def _status(db: Session) -> list[dict]:
          "help": "Optional. newsapi.org -> Get API key (free Developer plan: development only, 24 h delay, 100 "
                  "requests/day, articles up to a month old); paste it below.",
          "testable": bool(s.newsapi_key)},
+        {"key": "reddit", "name": "Reddit (posts for the News Sentiment agent)", "configured": s.reddit_configured,
+         "fields": {"REDDIT_CLIENT_ID": mask(s.reddit_client_id), "REDDIT_CLIENT_SECRET": mask(s.reddit_client_secret),
+                    "REDDIT_USER_AGENT": s.reddit_user_agent, "REDDIT_SUBREDDITS": s.reddit_subreddits},
+         "help": "Optional. Log in at reddit.com/prefs/apps -> 'create another app' -> type 'script' (redirect uri "
+                 "http://localhost:8000) -> paste the client id (the string under the app name) and the secret below. "
+                 "The app uses Reddit's application-only OAuth (client credentials): it only reads public posts and never "
+                 "logs in as you. Set a unique user agent naming your Reddit username. Without keys the News Sentiment "
+                 "agent uses NewsAPI / the offline demo headlines only.",
+         "testable": s.reddit_configured},
         {"key": "equibles", "name": "Equibles (prices + SEC fundamentals, insider & short data)",
          "configured": bool(s.equibles_api_key), "fields": {"EQUIBLES_API_KEY": mask(s.equibles_api_key)},
          "help": "Optional. equibles.com -> Start free (email code, no card) -> Dashboard -> API keys -> create a key and "
@@ -110,6 +119,11 @@ def test(db: Session, key: str) -> dict:
         if key == "newsapi":
             from trader.sentiment.news import newsapi_test
             return {"ok": True, "message": "NewsAPI OK", "detail": newsapi_test()}
+        if key == "reddit":
+            from trader.sentiment.reddit import reddit_test
+            js = reddit_test()
+            return {"ok": True, "message": f"Reddit OK - token issued, r/{js['subreddit']} search returned {js['posts']} post(s)",
+                    "detail": js}
         if key == "equibles":
             from trader.data.providers import PROVIDERS
             js = PROVIDERS["equibles"].test()

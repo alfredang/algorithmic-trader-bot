@@ -74,16 +74,17 @@ def cmd_backtest(a) -> int:
 
 
 def cmd_agents(a) -> int:
-    from trader.agents.desk import run_desk, run_dict
+    from trader.agents.workflow import run_dict, run_workflow
     from trader.db import migrate, session_scope
     migrate()
     with session_scope() as db:
-        r = run_desk(db, a.symbols, a.provider)
+        r = run_workflow(db, a.symbols, a.provider, data_mode=a.data)
         d = run_dict(r)
         for t in d["trace"]:
-            print(f"[{t['symbol']}] {t['title']:<34} ({t['brain']}): {json.dumps(t['output'])[:140]}")
-        print(f"status {d['status']}; proposals {d['proposals']} -> approve on the AI Agents page (human approval)")
-    return 0
+            print(f"[{t['symbol']}] {t['title']:<28} ({t['brain']}): {json.dumps(t['output'], default=str)[:140]}")
+        print(f"status {d['status']}; signals {[(s['symbol'], s['signal']) for s in d['signals']]}; "
+              f"orders {[(o['symbol'], o['side'], o['qty'], o.get('status')) for o in d['orders']]}")
+    return 0 if d["status"] != "error" else 1
 
 
 def cmd_status(a) -> int:
@@ -120,9 +121,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--start")
     p.add_argument("--end")
     p.set_defaults(fn=cmd_backtest)
-    p = sub.add_parser("agents", help="run the multi-agent desk once (proposals need approval in the UI)")
+    p = sub.add_parser("agents", help="run the 8-agent workflow once (trades on the paper account)")
     p.add_argument("--symbols", nargs="+", default=["NVDA", "AAPL", "SPY"])
     p.add_argument("--provider", default=None)
+    p.add_argument("--data", choices=["auto", "offline"], default=None, help="data mode (default AGENT_DATA_MODE)")
     p.set_defaults(fn=cmd_agents)
     sub.add_parser("status", help="show configuration and AI provider status").set_defaults(fn=cmd_status)
     a = ap.parse_args(argv)

@@ -1,6 +1,7 @@
 """Market data, instruments, data quality, news and sentiment."""
 from __future__ import annotations
 
+import httpx
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -153,6 +154,20 @@ def news(symbol: str | None = None, limit: int = 100, db: Session = Depends(get_
         q = q.where(NewsItem.symbol == symbol.upper())
     return [{"id": n.id, "symbol": n.symbol, "published_at": n.published_at.isoformat(), "headline": n.headline,
              "url": n.url, "source": n.source, "sentiment": n.sentiment, "synthetic": n.synthetic} for n in db.scalars(q)]
+
+
+@router.get("/reddit")
+def reddit(symbol: str, subreddits: str | None = None, limit: int = Query(15, ge=1, le=100), refresh: bool = False):
+    """Recent Reddit posts mentioning the symbol (or its company name) with lexicon sentiment, cached 15 minutes.
+    Without Reddit keys: 200 with ``configured: false`` and no posts (the agents fall back to NewsAPI / demo data)."""
+    from trader.sentiment import reddit as RD
+    sym = symbol.upper().strip()
+    company = data.INSTRUMENT_META.get(sym, ("", ""))[0].split(" ")[0] or None
+    try:
+        out = RD.posts(sym, company, RD.subreddits(subreddits) if subreddits else None, limit, refresh)
+    except (RD.RedditError, httpx.HTTPError) as exc:
+        raise HTTPException(502, f"Reddit: {exc}") from exc
+    return {**out, "summary": RD.summarise(out["posts"])}
 
 
 @router.get("/sentiment")

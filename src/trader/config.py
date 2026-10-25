@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     twelvedata_api_key: str = Field("", alias="TWELVEDATA_API_KEY")
     newsapi_key: str = Field("", alias="NEWSAPI_KEY")
     equibles_api_key: str = Field("", alias="EQUIBLES_API_KEY")
+    # Reddit "application-only" OAuth (client credentials) - reddit.com/prefs/apps -> create a "script" app
+    reddit_client_id: str = Field("", alias="REDDIT_CLIENT_ID")
+    reddit_client_secret: str = Field("", alias="REDDIT_CLIENT_SECRET")
+    reddit_user_agent: str = Field("python:algorithmic-trader-bot:v2 (course app)", alias="REDDIT_USER_AGENT")
+    reddit_subreddits: str = Field("stocks,wallstreetbets,investing", alias="REDDIT_SUBREDDITS")
     default_data_source: str = Field("auto", alias="DEFAULT_DATA_SOURCE")   # auto|demo|alpaca|twelvedata|equibles|yfinance
 
     # --- AI agents
@@ -52,7 +57,8 @@ class Settings(BaseSettings):
     openai_model: str = Field("", alias="OPENAI_MODEL")                   # blank = the Agents SDK default
     codex_model: str = Field("", alias="CODEX_MODEL")                     # blank = the Codex CLI default
     agent_timeout_s: int = Field(120, alias="AGENT_TIMEOUT_S")
-    agent_auto_approve: bool = Field(False, alias="AGENT_AUTO_APPROVE")
+    agent_position_pct: float = Field(0.10, alias="AGENT_POSITION_PCT")    # Stock Trader agent: order size, fraction of equity
+    agent_data_mode: str = Field("auto", alias="AGENT_DATA_MODE")          # auto (use configured sources) | offline (no network)
     always_on_interval_min: int = Field(60, alias="ALWAYS_ON_INTERVAL_MIN")
 
     # --- TradingView webhook
@@ -65,6 +71,10 @@ class Settings(BaseSettings):
     @property
     def alpaca_configured(self) -> bool:
         return bool(self.alpaca_key_id and self.alpaca_secret_key)
+
+    @property
+    def reddit_configured(self) -> bool:
+        return bool(self.reddit_client_id and self.reddit_client_secret)
 
     @property
     def is_sqlite(self) -> bool:

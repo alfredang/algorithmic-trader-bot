@@ -52,25 +52,19 @@ def run_bot_job(bot_id: int) -> None:
 def always_on_config(db) -> dict:
     s = db.get(Setting, "always_on")
     return {"enabled": False, "interval_min": 60, "symbols": ["NVDA", "AAPL", "SPY"], "provider": "auto",
-            "refresh_news": True, **((s.value if s else None) or {})}
+            "refresh_news": True, "data_mode": "auto", **((s.value if s else None) or {})}
 
 
 def always_on_job() -> None:
-    """The 24/7 AI agent: monitor markets and news, write memory, propose trades within the hard limits."""
-    from trader.agents.desk import run_desk
-    from trader.data import service as data
+    """The 24/7 AI agent: run the 8-agent workflow on the watch list - research, trade on paper, review, write memory."""
+    from trader.agents.workflow import run_workflow
     with session_scope() as db:
         cfg = always_on_config(db)
         if not cfg["enabled"]:
             return
         stage("scheduler", "running", f"Always-on agent wake-up: {', '.join(cfg['symbols'])}", db=db)
-        for s in cfg["symbols"]:
-            try:
-                if cfg.get("refresh_news"):
-                    data.fetch_news(db, s)
-            except Exception as exc:
-                log.warning("news refresh failed for %s: %s", s, exc)
-        run = run_desk(db, cfg["symbols"], cfg.get("provider"), mode="always_on")
+        run = run_workflow(db, cfg["symbols"], cfg.get("provider"), mode="always_on", data_mode=cfg.get("data_mode"),
+                           refresh_news=cfg.get("refresh_news", True))
         stage("scheduler", "ok", f"Always-on agent run #{run.id}: {run.status}", {"run_id": run.id}, db=db)
 
 

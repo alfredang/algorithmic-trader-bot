@@ -25,16 +25,23 @@ EDITABLE: dict[str, list[tuple[str, str, str, tuple[str, ...]]]] = {
     "twelvedata": [("TWELVEDATA_API_KEY", "API key", "secret", ())],
     "newsapi": [("NEWSAPI_KEY", "API key", "secret", ())],
     "equibles": [("EQUIBLES_API_KEY", "API key (starts with eq_)", "secret", ())],
+    "reddit": [("REDDIT_CLIENT_ID", "Client ID (under the app name)", "secret", ()),
+               ("REDDIT_CLIENT_SECRET", "Secret", "secret", ()),
+               ("REDDIT_USER_AGENT", "User agent (e.g. python:my-trader:v1 (by /u/yourname))", "text", ()),
+               ("REDDIT_SUBREDDITS", "Subreddits (comma-separated)", "text", ())],
     "claude": [("ANTHROPIC_API_KEY", "Anthropic API key (starts with sk-ant-)", "secret", ())],
     "openai": [("OPENAI_API_KEY", "OpenAI API key (starts with sk-)", "secret", ())],
 }
 ALL_KEYS = {name for fields in EDITABLE.values() for name, *_ in fields}
 _VALUE = re.compile(r"^[A-Za-z0-9_\-.:/+=]{1,512}$")
+_TEXT = re.compile(r"^[A-Za-z0-9_\-.:/+,()@ ]{1,256}$")      # plain settings (no quotes, '=', '#' or line breaks)
 
 _ATTR = {"APCA_API_KEY_ID": "alpaca_key_id", "APCA_API_SECRET_KEY": "alpaca_secret_key",
          "APCA_DATA_FEED": "alpaca_data_feed", "TWELVEDATA_API_KEY": "twelvedata_api_key",
          "NEWSAPI_KEY": "newsapi_key", "EQUIBLES_API_KEY": "equibles_api_key",
-         "ANTHROPIC_API_KEY": "anthropic_api_key", "OPENAI_API_KEY": "openai_api_key"}
+         "ANTHROPIC_API_KEY": "anthropic_api_key", "OPENAI_API_KEY": "openai_api_key",
+         "REDDIT_CLIENT_ID": "reddit_client_id", "REDDIT_CLIENT_SECRET": "reddit_client_secret",
+         "REDDIT_USER_AGENT": "reddit_user_agent", "REDDIT_SUBREDDITS": "reddit_subreddits"}
 
 
 class KeyError_(ValueError):
@@ -55,7 +62,7 @@ def fields_for(integration: str) -> list[dict]:
             source = "from .env / environment"
         else:
             source = "default" if current else ""
-        if kind == "select":
+        if kind in ("select", "text"):
             preview = current
         else:
             preview = mask(current)
@@ -73,6 +80,10 @@ def _validate(name: str, value: str) -> str:
             if v.lower() not in options:
                 raise KeyError_(f"{name} must be one of {', '.join(options)}")
             return v.lower()
+        if kind_name == name and kind == "text":
+            if not _TEXT.match(v):
+                raise KeyError_(f"{name}: letters, digits, spaces and - _ . : / + , ( ) @ only (no quotes or line breaks)")
+            return v
     if not _VALUE.match(v):
         raise KeyError_(f"{name}: paste the key exactly as shown by the provider "
                         "(no spaces, quotes or line breaks)")

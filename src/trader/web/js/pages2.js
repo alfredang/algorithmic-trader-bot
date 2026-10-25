@@ -237,37 +237,58 @@
   };
 
   /* ------------------------------------------------------------------ AI agents */
-  // the agent flow: one column per desk stage, in the order the orchestrator runs them
-  const FLOW = [['Analysts', [['technical_analyst', 'Technical'], ['sentiment_analyst', 'Sentiment'], ['fundamental_analyst', 'Fundamental']]],
-    ['Debate ×2', [['bull_researcher', 'Bull'], ['bear_researcher', 'Bear']]], ['Decide', [['trader', 'Trader']]],
-    ['Review', [['risk_manager', 'Risk mgr']]], ['Gate', [['risk_limits', 'Hard limits']]],
-    ['Final call', [['portfolio_manager', 'PM']]], ['Human', [['human', 'Approval']]]];
-  const FLOW_KEYS = FLOW.flatMap((c) => c[1].map((n) => n[0])).filter((k) => k !== 'human');
+  // the 8-agent workflow, in flow order; research agents run in parallel; '*' = run-level agents
+  const FLOW = [['1 · Plan', [['lead', 'Lead']]],
+    ['2 · Research ∥', [['finance_research', 'Finance'], ['news_sentiment', 'Sentiment']]],
+    ['3 · Strategy', [['trading_strategy', 'Strategy']]], ['4 · Signal', [['signal_generation', 'Signal']]],
+    ['5 · Execute', [['stock_trader', 'Trader']]], ['6 · Performance', [['performance_analysis', 'Performance']]],
+    ['7 · Review', [['strategy_review', 'Review']]]];
+  const ORDER = ['lead', 'finance_research', 'news_sentiment', 'trading_strategy', 'signal_generation', 'stock_trader', 'performance_analysis', 'strategy_review'];
+  const RUN_LEVEL = ['lead', 'performance_analysis', 'strategy_review'];
+  const SYMBOL_LEVEL = ORDER.filter((k) => !RUN_LEVEL.includes(k));
+  const PERF_KEYS = [['total_return', 'Total return'], ['daily_return_last', 'Last daily return'], ['sharpe', 'Sharpe'], ['max_drawdown', 'Max drawdown'],
+    ['win_rate', 'Win rate'], ['trades', 'Trades (fills)'], ['exposure', 'Exposure']];
+  const DONE = ['done', 'fallback', 'code', 'blocked'];
   window.agentsPage = function () {
     const q = Q.query();
     return {
-      prov: { providers: [] }, roles: { roles: [], taxonomy: {}, risks: [], systems: [] }, runs: [], run: null, symbols: q.symbols || 'NVDA, AAPL, SPY', provider: '', orchestration: 'native',
-      busy: false, limits: {}, ao: {}, memory: [], symSel: null, tab: 'desk', QTS: Q, live: null, FLOW,
+      prov: { providers: [] }, roles: { roles: [], taxonomy: {}, risks: [], systems: [], algorithms: {} }, runs: [], run: null,
+      symbols: q.symbols || 'NVDA, AAPL, SPY', provider: '', orchestration: 'native', dataMode: '', busy: false, ao: {}, memory: [],
+      symSel: null, tab: q.tab || 'workflow', QTS: Q, live: null, FLOW, PERF_KEYS, perf: {}, gd: {}, cfg: {}, pctInput: 10,
+      TABS: [['workflow', 'Multi-agent workflow'], ['performance', 'Performance'], ['guidance', 'Strategy guidance'], ['always', 'Always-on agent'],
+        ['settings', 'Settings'], ['memory', 'Memory'], ['about', 'How it works']],
       async init() {
-        [this.prov, this.roles, this.runs, this.limits, this.ao, this.memory] = await Promise.all([Q.get('/api/agents/providers'), Q.get('/api/agents/roles'),
-          Q.get('/api/agents/runs'), Q.get('/api/agents/limits'), Q.get('/api/agents/always-on'), Q.get('/api/agents/memory?limit=30')]);
+        [this.prov, this.roles, this.runs, this.ao, this.memory, this.cfg] = await Promise.all([Q.get('/api/agents/providers'), Q.get('/api/agents/roles'),
+          Q.get('/api/agents/runs'), Q.get('/api/agents/always-on'), Q.get('/api/agents/memory?limit=30'), Q.get('/api/agents/settings')]);
+        this.pctInput = Math.round((this.cfg.position_pct || 0.1) * 1000) / 10;
+        await this.loadSide();
         const id = q.run || (this.runs[0] && this.runs[0].id); if (id) this.open(id);
-        ['agents.run', 'agents.approved', 'agents.rejected'].forEach((k) => Q.on(k, async () => { this.runs = await Q.get('/api/agents/runs', true); }));
+        if (this.tab === 'performance') this.$nextTick(() => this.drawEquity());
+        Q.on('agents.run', async () => { this.runs = await Q.get('/api/agents/runs', true); this.loadSide(); });
       },
+      async loadSide() { [this.perf, this.gd] = await Promise.all([Q.get('/api/agents/performance', true), Q.get('/api/agents/guidance', true)]); },
+      setTab(t) { this.tab = t; if (t === 'performance') this.$nextTick(() => this.drawEquity()); },
+      drawEquity() {
+        if (!this.perf.available || !this.$refs.eq) return;
+        Q.lineChart(this.$refs.eq, [{ label: 'Equity', data: this.perf.equity_curve || [], color: '#1f4e79' }], { fmt: (v) => Q.usd(v), timeLen: 16 });
+      },
+      get guidanceInfo() { const g = this.gd.current; return g ? (g.run_id ? 'run #' + g.run_id : 'defaults') : ''; },
       async open(id) { this.run = await Q.get('/api/agents/runs/' + id); this.symSel = this.run.symbols[0]; },
       async go() {
         this.busy = true;
         const id = this.watch();
         try {
-          this.run = await Q.post('/api/agents/run', { symbols: Q.symbolsFrom(this.symbols), provider: this.provider || null, orchestration: this.orchestration, live_id: id });
+          this.run = await Q.post('/api/agents/run', { symbols: Q.symbolsFrom(this.symbols), provider: this.provider || null, orchestration: this.orchestration,
+            data_mode: this.dataMode || null, live_id: id });
           this.symSel = this.run.symbols[0]; this.runs = await Q.get('/api/agents/runs'); this.memory = await Q.get('/api/agents/memory?limit=30');
-          Q.toast(`Desk run #${this.run.id}: ${this.run.status} (${this.run.agents} agent calls)`, 'ok');
+          await this.loadSide();
+          Q.toast(`Run #${this.run.id}: ${this.run.status} (${this.run.agents} agent calls, ${(this.run.orders || []).filter((o) => o.ok).length} paper order(s))`, this.run.status === 'error' ? 'error' : 'ok');
         } finally { this.busy = false; this.unwatch(); }
       },
-      // poll the desk's live progress while the (long) run request is still open
+      // poll the workflow's live progress while the (long) run request is still open
       watch() {
         this.unwatch();
-        const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const id = 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         const tick = async () => {
           try { const l = await Q.get('/api/agents/live/' + id, true); if (this._poll) { this.live = l; if (l.current) this.symSel = l.current; } } catch (e) { /* run not started yet */ }
         };
@@ -279,77 +300,104 @@
       get flow() {
         if (this.live) {
           const l = this.live;
-          return { live: true, title: 'running · ' + l.provider, ms: l.elapsed_ms, current: l.current,
-            rows: l.symbols.map((s) => ({ symbol: s, nodes: { ...l.nodes[s], human: { state: 'waiting' } } })) };
+          return { live: true, title: 'running · ' + l.provider, ms: l.elapsed_ms, current: l.current, symbols: l.symbols, nodes: l.nodes };
         }
         if (!this.run) return null;
-        const r = this.run;
-        return { live: false, title: 'run #' + r.id + ' · ' + r.provider, ms: r.duration_ms, current: null,
-          rows: r.symbols.map((s) => {
-            const nodes = {}; FLOW_KEYS.forEach((k) => { nodes[k] = { state: 'skipped' }; });
-            (r.trace || []).filter((t) => t.symbol === s).forEach((t) => {
-              if (t.agent === 'orchestrator' && t.title === 'Data') FLOW_KEYS.forEach((k) => { nodes[k].error = t.error; });
-              if (!nodes[t.agent]) return;
-              nodes[t.agent] = { state: (t.brain || '').startsWith('rules (fallback') ? 'fallback' : 'done', brain: t.brain, ms: t.ms, round: t.round, output: t.output || {}, error: t.error };
-            });
-            return { symbol: s, nodes: { ...nodes, human: this.humanNode(s) } };
-          }) };
+        const r = this.run, nodes = { '*': {} };
+        RUN_LEVEL.forEach((k) => { nodes['*'][k] = { state: 'skipped' }; });
+        r.symbols.forEach((s) => { nodes[s] = {}; SYMBOL_LEVEL.forEach((k) => { nodes[s][k] = { state: 'skipped' }; }); });
+        (r.trace || []).forEach((t) => {
+          if (t.control) { if (t.title === 'Data' && nodes[t.symbol]) SYMBOL_LEVEL.forEach((k) => { nodes[t.symbol][k].error = t.error; }); return; }
+          if (!nodes[t.symbol] || !nodes[t.symbol][t.agent]) return;
+          nodes[t.symbol][t.agent] = { state: (t.brain || '').startsWith('rules (fallback') ? 'fallback' : 'done', brain: t.brain, ms: t.ms, output: t.output || {}, error: t.error };
+        });
+        return { live: false, title: 'run #' + r.id + ' · ' + r.provider, ms: r.duration_ms, current: null, symbols: r.symbols, nodes };
       },
-      humanNode(s) {
-        const r = this.run, p = (r.proposals || []).find((x) => x.symbol === s);
-        if (!p) return { state: 'idle', text: 'no order' };
-        if (r.status === 'proposed') return { state: 'human', text: 'awaiting you' };
-        if (r.status === 'rejected') return { state: 'blocked', text: (r.approved_by ? 'rejected' : 'blocked') };
-        const o = (r.orders || []).find((x) => x.symbol === s);
-        return o && o.ok ? { state: 'done', text: p.side + ' ' + p.qty + ' sent' } : { state: 'blocked', text: o ? 'order blocked' : r.status };
+      cells(f, key) { return RUN_LEVEL.includes(key) ? [['*', (f.nodes['*'] || {})[key] || { state: 'waiting' }]] : f.symbols.map((s) => [s, (f.nodes[s] || {})[key] || { state: 'waiting' }]); },
+      agg(f, key) {
+        const c = this.cells(f, key).map((x) => this.nodeState(key, x[1]));
+        if (c.some((s) => s === 'running')) return { state: 'running' };
+        if (c.length && c.every((s) => s === 'skipped')) return { state: 'skipped' };
+        if (c.some((s) => s === 'waiting')) return { state: 'waiting' };
+        if (c.some((s) => s === 'blocked')) return { state: 'blocked' };
+        if (c.some((s) => s === 'fallback')) return { state: 'fallback' };
+        return { state: key === 'stock_trader' ? 'code' : 'done' };
       },
+      nodeState(key, n) {
+        if (key === 'stock_trader' && n.state === 'done') return (n.output || {}).action === 'failed' ? 'blocked' : 'code';
+        return n.state;
+      },
+      o(f, s, key) { const n = (f.nodes[RUN_LEVEL.includes(key) ? '*' : s] || {})[key]; return (n && n.output) || {}; },
+      nodeLines(f, key) {
+        const sec = (ms) => (ms / 1000).toFixed(1) + 's';
+        const cells = this.cells(f, key);
+        if (RUN_LEVEL.includes(key)) {
+          const n = cells[0][1], o = n.output || {};
+          if (n.state === 'running') return [sec(n.ms || 0)];
+          if (!DONE.includes(n.state)) return [n.state];
+          if (key === 'lead') return [o.summary ? 'summary written' : 'plan ready', (o.plan || []).length + ' steps'];
+          if (key === 'performance_analysis') { const m = o.metrics || {}; return ['return ' + Q.pct(m.total_return, 2), 'max DD ' + Q.pct(m.max_drawdown, 2)]; }
+          if (key === 'strategy_review') return ['long > ' + Q.num(o.long_above), 'short < ' + Q.num(o.short_below)];
+          return ['done'];
+        }
+        return cells.map(([s, n]) => {
+          const o = n.output || {};
+          if (n.state === 'running') return s + ' · ' + sec(n.ms || 0);
+          if (!DONE.includes(n.state)) return s + ' · ' + (n.state === 'skipped' && n.error ? 'no data' : n.state);
+          if (key === 'finance_research' || key === 'news_sentiment') return s + ' ' + (o.score > 0 ? '+' : '') + Q.num(o.score);
+          if (key === 'trading_strategy') return s + ' ' + Q.num((o.composite || {}).composite) + ' ' + (o.mode || '');
+          if (key === 'signal_generation') return s + ' ' + (o.signal || 'null') + ' ' + Q.num(o.confidence);
+          if (key === 'stock_trader') return s + ' ' + this.traderText(o);
+          return s + ' done';
+        });
+      },
+      traderText(o) {
+        if (!o || !o.action) return '–';
+        const ok = (o.orders || []).filter((x) => x.ok);
+        if (o.action === 'failed') return 'failed: ' + ((o.orders || []).find((x) => !x.ok) || {}).error;
+        return o.action + (ok.length ? ' · ' + ok.map((x) => x.side + ' ' + x.qty + ' ' + (x.status || '')).join(', ') : '');
+      },
+      nodeTip(f, n) { return n[1] + ': ' + this.nodeLines(f, n[0]).join(' | '); },
       flowProgress(f) {
-        const all = f.rows.length * FLOW_KEYS.length;
-        const done = f.rows.reduce((a, row) => a + FLOW_KEYS.filter((k) => ['done', 'fallback'].includes(row.nodes[k].state)).length, 0);
+        const all = RUN_LEVEL.length + f.symbols.length * SYMBOL_LEVEL.length;
+        let done = RUN_LEVEL.filter((k) => DONE.includes(((f.nodes['*'] || {})[k] || {}).state)).length;
+        f.symbols.forEach((s) => { done += SYMBOL_LEVEL.filter((k) => DONE.includes(((f.nodes[s] || {})[k] || {}).state)).length; });
         return { done, all, pct: all ? Math.round(100 * done / all) : 0 };
       },
-      rowState(f, row) {
-        if (f.current === row.symbol) return 'running';
-        const st = FLOW_KEYS.map((k) => row.nodes[k].state);
-        if (st.every((x) => ['done', 'fallback'].includes(x))) return 'done';
-        if (st.some((x) => x === 'skipped')) return 'no data';
-        return 'waiting';
+      colLit(f, ci) { return ci >= 0 && FLOW[ci][1].every((n) => ['done', 'fallback', 'code'].includes(this.agg(f, n[0]).state)); },
+      step(agent) { return ORDER.indexOf(agent) + 1; },
+      traceFor(sym) {
+        const t = (this.run && this.run.trace || []).filter((x) => x.symbol === sym || x.symbol === '*');
+        const rank = (x) => (x.control ? -1 : ORDER.indexOf(x.agent));
+        return t.slice().sort((a, b) => rank(a) - rank(b));
       },
-      nodeClass(key, n) {
-        if (key === 'risk_limits' && n.state === 'done') return (n.output || {}).decision === 'REJECTED' ? 'af-blocked' : 'af-code';
-        return 'af-' + n.state;
-      },
-      nodeText(key, n) {
-        if (n.text) return n.text;
-        const o = n.output || {}, sec = (ms) => (ms / 1000).toFixed(1) + 's';
-        if (n.state === 'waiting') return 'waiting';
-        if (n.state === 'skipped') return n.error ? 'skipped - no data' : 'skipped';
-        if (n.state === 'running') return (['bull_researcher', 'bear_researcher'].includes(key) ? 'r' + (n.round || 1) + ' · ' : '') + sec(n.ms || 0);
-        if (o.score !== undefined) return (o.score > 0 ? '+' : '') + Q.num(o.score);
-        if (o.conviction !== undefined) return 'conv ' + Q.num(o.conviction);
-        if (o.action) return o.action.toUpperCase() + ' ' + Q.num(o.confidence);
-        if (key === 'risk_limits') return ({ APPROVED: 'pass', REJECTED: 'blocked', 'NO TRADE': 'no trade' }[o.decision] || o.decision) + (o.qty ? ' · ' + o.qty : '');
-        if (o.decision) return o.decision;
-        return 'done';
-      },
-      nodeTip(n, x) {
-        const o = x.output || {};
-        return [n[1], x.state, x.brain, x.ms ? (x.ms / 1000).toFixed(1) + ' s' : '', o.summary || o.rationale || (o.notes || []).join('; '), x.error].filter(Boolean).join(' · ');
-      },
-      colLit(row, ci) { return FLOW[ci][1].every((n) => ['done', 'fallback'].includes((row.nodes[n[0]] || {}).state)); },
-      async decide(action) {
-        if (action === 'approve' && !confirm('Send the approved proposals as PAPER orders? (Hard risk limits are applied again at order time.)')) return;
-        this.run = await Q.post(`/api/agents/runs/${this.run.id}/${action}`); this.runs = await Q.get('/api/agents/runs');
-        Q.toast(action === 'approve' ? 'Approved - paper orders sent' : 'Rejected', action === 'approve' ? 'ok' : 'info');
-      },
-      traceFor(sym) { return (this.run && this.run.trace || []).filter((t) => t.symbol === sym); },
       out(t) { return t.output || {}; },
-      async saveLimits() { this.limits = await Q.put('/api/agents/limits', this.limits); Q.toast('Limits saved', 'ok'); },
-      async saveAO() { this.ao = await Q.put('/api/agents/always-on', { enabled: this.ao.enabled, interval_min: parseInt(this.ao.interval_min, 10), symbols: Q.symbolsFrom(Array.isArray(this.ao.symbols) ? this.ao.symbols.join(',') : this.ao.symbols), provider: this.ao.provider, refresh_news: this.ao.refresh_news }); Q.toast('Always-on agent ' + (this.ao.enabled ? 'enabled' : 'disabled'), 'ok'); },
+      fin(t) { const d = (t.output || {}).data || {}; return { intervals: d.intervals || {}, sources: { candles: {}, ...(d.sources || {}) }, fundamentals: d.fundamentals || {} }; },
+      srcText(x) { if (!x) return '–'; return x.error ? 'unavailable (hover)' : (x.source || '') + (x.last ? ' · ' + String(x.last).slice(0, 10) : ''); },
+      fmtFund(k, v) {
+        if (typeof v !== 'number') return v;
+        if (['profitMargins', 'revenueGrowth'].includes(k)) return Q.pct(v, 1);
+        if (k === 'marketCap') return '$' + (v / 1e9).toFixed(0) + 'B';
+        return Q.num(v, 2);
+      },
+      fmtMetric(k, v) {
+        if (v === null || v === undefined) return '–';
+        if (['total_return', 'daily_return_last', 'max_drawdown', 'win_rate', 'exposure', 'gross_exposure'].includes(k)) return Q.pct(v, 2);
+        if (k === 'equity') return Q.usd(v, 0);
+        if (['trades', 'round_trips', 'orders'].includes(k)) return String(v);
+        return Q.num(v, 2);
+      },
+      voteText(v) { return v > 0 ? '▲ long' : v < 0 ? '▼ short' : '· flat'; },
+      async saveCfg() {
+        const pct = parseFloat(this.pctInput) / 100;
+        if (!(pct > 0 && pct <= 1)) { Q.toast('Position size must be between 0.1% and 100%', 'error'); return; }
+        this.cfg = await Q.put('/api/agents/settings', { position_pct: pct }); Q.toast('Stock Trader settings saved', 'ok');
+      },
+      async saveAO() { this.ao = await Q.put('/api/agents/always-on', { enabled: this.ao.enabled, interval_min: parseInt(this.ao.interval_min, 10), symbols: Q.symbolsFrom(Array.isArray(this.ao.symbols) ? this.ao.symbols.join(',') : this.ao.symbols), provider: this.ao.provider, refresh_news: this.ao.refresh_news, data_mode: this.ao.data_mode || 'auto' }); Q.toast('Always-on agent ' + (this.ao.enabled ? 'enabled' : 'disabled'), 'ok'); },
       async aoNow() {
-        this.busy = true; this.tab = 'desk';
+        this.busy = true; this.tab = 'workflow';
         const id = this.watch();
-        try { this.run = await Q.post('/api/agents/always-on/run-now?live_id=' + id); this.symSel = this.run.symbols[0]; this.ao = await Q.get('/api/agents/always-on'); this.memory = await Q.get('/api/agents/memory?limit=30'); } finally { this.busy = false; this.unwatch(); }
+        try { this.run = await Q.post('/api/agents/always-on/run-now?live_id=' + id); this.symSel = this.run.symbols[0]; this.ao = await Q.get('/api/agents/always-on'); this.memory = await Q.get('/api/agents/memory?limit=30'); await this.loadSide(); } finally { this.busy = false; this.unwatch(); }
       },
       brainBadge(b) { return (b || '').startsWith('rules (fallback') ? 'badge-warn' : (b || '').startsWith('rules') ? 'badge-muted' : (b || '').includes('code') ? 'badge-info' : 'badge-ok'; },
     };

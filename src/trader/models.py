@@ -253,17 +253,17 @@ class PnLSnapshot(Base):
 class AgentRun(Base):
     __tablename__ = "agent_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    mode: Mapped[str] = mapped_column(String(16), default="desk")          # desk | always_on
+    mode: Mapped[str] = mapped_column(String(16), default="manual")        # manual | always_on
     provider: Mapped[str] = mapped_column(String(32), default="rules")
     auth_mode: Mapped[str] = mapped_column(String(32), default="none")
     model: Mapped[str] = mapped_column(String(64), default="")
     orchestration: Mapped[str] = mapped_column(String(32), default="pipeline")
     symbols: Mapped[list] = mapped_column(JSON, default=list)
-    trace: Mapped[list] = mapped_column(JSON, default=list)                 # one entry per agent per symbol
-    proposals: Mapped[list] = mapped_column(JSON, default=list)
-    status: Mapped[str] = mapped_column(String(16), default="proposed")    # proposed|approved|rejected|executed|no_trade|error
-    approved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    orders: Mapped[list] = mapped_column(JSON, default=list)
+    trace: Mapped[list] = mapped_column(JSON, default=list)                 # one entry per agent call
+    proposals: Mapped[list] = mapped_column(JSON, default=list)             # the run's signals, one per symbol
+    status: Mapped[str] = mapped_column(String(16), default="running")     # running|executed|no_trade|error
+    approved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)   # unused since the 8-agent workflow
+    orders: Mapped[list] = mapped_column(JSON, default=list)                # paper orders the Stock Trader sent
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
@@ -273,7 +273,7 @@ class AgentMemory(Base):
     __tablename__ = "agent_memory"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     topic: Mapped[str] = mapped_column(String(64), index=True)              # symbol or 'market'
-    kind: Mapped[str] = mapped_column(String(32), default="observation")    # observation|decision|lesson
+    kind: Mapped[str] = mapped_column(String(32), default="observation")    # observation|decision|signal|guidance
     content: Mapped[str] = mapped_column(Text)
     data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)

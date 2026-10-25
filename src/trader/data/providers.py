@@ -156,6 +156,9 @@ class TwelveDataProvider:
     INTERVALS = {"1Day": "1day", "1Week": "1week", "1Month": "1month", "1Hour": "1h", "15Min": "15min", "5Min": "5min",
                  "1Min": "1min"}
 
+    def __init__(self):
+        self._candles: dict[tuple, tuple[float, pd.DataFrame]] = {}
+
     def available(self) -> bool:
         return bool(get_settings().twelvedata_api_key)
 
@@ -183,6 +186,24 @@ class TwelveDataProvider:
         df = df.set_index("timestamp")[COLUMNS].astype(float).sort_index()
         if timeframe.endswith(("Min", "Hour")):
             df.index = df.index.tz_localize(ET)
+        return df
+
+    def candles(self, symbol: str, interval: str, outputsize: int = 300, ttl_s: int = 60) -> pd.DataFrame:
+        """The latest ``outputsize`` candles at a Twelve Data interval ('1min', '15min', '1h' ...), cached ``ttl_s``.
+        One API credit per call (free plan: 8 per minute, 800 per day)."""
+        key = get_settings().twelvedata_api_key
+        if not key:
+            raise DataError("TWELVEDATA_API_KEY is not set")
+        ck = (symbol.upper(), interval, int(outputsize))
+        hit = self._candles.get(ck)
+        if hit and time.time() - hit[0] < ttl_s:
+            return hit[1]
+        tf = {v: k for k, v in self.INTERVALS.items()}.get(interval, "1Day")
+        params = {"symbol": symbol, "interval": interval, "outputsize": int(outputsize), "order": "asc", "timezone": ET,
+                  "format": "JSON"}
+        r = httpx.get(f"{self.URL}/time_series", params=params, headers={"Authorization": f"apikey {key}"}, timeout=30)
+        df = self.parse(r.json(), tf)
+        self._candles[ck] = (time.time(), df)
         return df
 
     def test(self) -> dict:
@@ -335,6 +356,60 @@ class YFinanceProvider:
             df.index = pd.to_datetime(df.index).tz_localize(None).normalize()
         df.index.name = "timestamp"
         return df.astype(float)
+
+    INFO_KEYS = ("longName", "sector", "industry", "quoteType", "currency", "marketCap", "enterpriseValue", "trailingPE",
+                 "forwardPE", "pegRatio", "priceToBook", "priceToSalesTrailing12Months", "enterpriseToEbitda",
+                 "profitMargins", "operatingMargins", "grossMargins", "returnOnEquity", "returnOnAssets", "revenueGrowth",
+                 "earningsGrowth", "debtToEquity", "currentRatio", "freeCashflow", "totalCash", "totalDebt", "beta",
+                 "dividendYield", "fiftyTwoWeekHigh", "fiftyTwoWeekLow", "recommendationKey", "targetMeanPrice",
+                 "numberOfAnalystOpinions", "shortPercentOfFloat", "shortRatio", "heldPercentInstitutions")
+    STATEMENT_ROWS = ("Total Revenue", "Gross Profit", "Operating Income", "Net Income", "Diluted EPS", "EBITDA")
+    FIN_TTL_S = 6 * 3600
+
+    def __init__(self):
+        self._fin: dict[str, tuple[float, dict]] = {}
+
+    def financials(self, symbol: str, timeout_s: float = 20.0, refresh: bool = False) -> dict:
+        """Company profile ratios plus the last annual income-statement lines (Yahoo Finance via yfinance), cached 6 h.
+
+        yfinance has no timeout of its own, so the call runs in a worker thread and is abandoned after ``timeout_s``.
+        ETFs and funds return few ratios - every missing figure is simply absent."""
+        import concurrent.futures as cf
+        symbol = symbol.upper().strip()
+        hit = self._fin.get(symbol)
+        if hit and not refresh and time.time() - hit[0] < self.FIN_TTL_S:
+            return {**hit[1], "cached": True}
+
+        def _load() -> dict:
+            import yfinance as yf
+            t = yf.Ticker(symbol)
+            info = t.info or {}
+            out = {"symbol": symbol, "profile": {k: info[k] for k in self.INFO_KEYS if info.get(k) not in (None, "", "Infinity")},
+                   "statements": {}, "source": "yfinance"}
+            try:
+                inc = t.income_stmt
+                if inc is not None and not inc.empty:
+                    cols = list(inc.columns)[:2]
+                    for row in self.STATEMENT_ROWS:
+                        if row in inc.index:
+                            vals = [None if pd.isna(inc.loc[row, c]) else float(inc.loc[row, c]) for c in cols]
+                            out["statements"][row] = {"latest": vals[0], "prior": vals[1] if len(vals) > 1 else None,
+                                                      "period": str(cols[0])[:10]}
+            except Exception as exc:          # statements are optional (ETFs have none)
+                out["statements_error"] = str(exc)[:200]
+            return out
+        pool = cf.ThreadPoolExecutor(max_workers=1)
+        try:
+            out = pool.submit(_load).result(timeout=timeout_s)
+        except cf.TimeoutError as exc:
+            raise DataError(f"yfinance timed out after {timeout_s:g} s for {symbol}") from exc
+        finally:
+            pool.shutdown(wait=False)
+        if not out["profile"] and not out["statements"]:
+            raise DataError(f"yfinance returned no company data for {symbol}")
+        out["fetched_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+        self._fin[symbol] = (time.time(), out)
+        return {**out, "cached": False}
 
 
 PROVIDERS = {p.name: p for p in (DemoProvider(), AlpacaProvider(), TwelveDataProvider(), EquiblesProvider(),

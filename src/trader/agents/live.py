@@ -1,15 +1,16 @@
-"""Live progress of a running desk - which agent is waiting, running or done, per symbol - so the AI Agents page
-can draw the agent flow while the run is still in progress. In memory (API process only): the finished run keeps
-its full trace in the database, so nothing here needs to survive a restart."""
+"""Live progress of a running workflow - which agent is waiting, running or done - so the AI Agents page can draw
+the agent flow while the run is still in progress. Per-symbol agents have one node per symbol; the run-level agents
+(lead, performance analysis, strategy review) live under the pseudo-symbol ``*``. In memory (API process only):
+the finished run keeps its full trace in the database, so nothing here needs to survive a restart."""
 from __future__ import annotations
 
 import threading
 import time
 
+from trader.agents.roles import ROLE_ORDER, SYMBOL_AGENTS
 from trader.services.events import jsonable
 
-NODES = ["technical_analyst", "sentiment_analyst", "fundamental_analyst", "bull_researcher", "bear_researcher",
-         "trader", "risk_manager", "risk_limits", "portfolio_manager"]
+RUN_AGENTS = [k for k in ROLE_ORDER if k not in SYMBOL_AGENTS]
 KEEP = 20
 
 _lock = threading.Lock()
@@ -17,14 +18,15 @@ _runs: dict[str, dict] = {}
 
 
 class Progress:
-    """Handle the desk calls as agents start and finish (thread-safe: the analysts and the debate run in parallel)."""
+    """Handle the workflow calls as agents start and finish (thread-safe: the two research agents run in parallel)."""
 
     def __init__(self, live_id: str, symbols: list[str], provider: str):
         self.id = live_id
         with _lock:
             _runs[live_id] = {"live_id": live_id, "status": "running", "provider": provider, "run_id": None,
                               "started": time.time(), "current": None, "symbols": symbols,
-                              "nodes": {s: {n: {"state": "waiting"} for n in NODES} for s in symbols}}
+                              "nodes": {"*": {n: {"state": "waiting"} for n in RUN_AGENTS},
+                                        **{s: {n: {"state": "waiting"} for n in SYMBOL_AGENTS} for s in symbols}}}
             for old in sorted(_runs, key=lambda k: _runs[k]["started"])[:-KEEP]:
                 _runs.pop(old, None)
 

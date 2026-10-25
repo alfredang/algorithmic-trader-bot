@@ -49,9 +49,10 @@ STAGES = [
     ("abtest", "A/B test & diagnostics", "Welch · paired · bootstrap · bias checks", "research/abtest",
      "Decide statistically before capital moves (Welch, paired t-test, block-bootstrap Sharpe CI) and run the bias "
      "diagnostics: look-ahead, cost drag, overfitting, survivorship."),
-    ("agents", "Multi-agent desk", "analysts → debate → trader → risk → PM", "agents",
-     "Agentic AI: technical, sentiment and fundamental analysts, a bull/bear debate, a trader, a risk manager and a "
-     "portfolio manager propose a trade; a human approves before any paper order."),
+    ("agents", "Multi-agent workflow", "lead → research ∥ sentiment → strategy → signal → trader → review", "agents",
+     "Agentic AI: a lead agent runs finance research and news sentiment in parallel, a trading-strategy agent mixes "
+     "algorithms, a signal agent says long / short / null and a trader agent places the paper order; performance "
+     "analysis and strategy review feed guidance back into the next run."),
     ("risk", "Pre-trade risk checks", "limits · market clock · kill switch", "trading",
      "Deterministic code that no model can loosen: kill switch, session rules, allow-list, max order value, max "
      "position, max daily loss, duplicate client_order_id."),
@@ -114,7 +115,7 @@ def _figures(db: Session) -> dict[str, dict]:
     dg = db.scalar(select(ResearchRun).where(ResearchRun.kind == "diagnostics", ResearchRun.status == "done")
                    .order_by(ResearchRun.id.desc()).limit(1))
     ar = db.scalar(select(AgentRun).order_by(AgentRun.id.desc()).limit(1))
-    pending = _count(db, select(func.count(AgentRun.id)).where(AgentRun.status == "proposed"))
+    agent_orders = _count(db, select(func.count(Order.id)).where(Order.source == "agent", Order.submitted_at >= today))
     kill = db.get(Setting, "kill_switch")
     bots_running = _count(db, select(func.count(Bot.id)).where(Bot.status == "running"))
     bots = list(db.scalars(select(Bot)))
@@ -153,8 +154,8 @@ def _figures(db: Session) -> dict[str, dict]:
         "abtest": {"last_ab": (ab.result or {}).get("decision") if ab else None, "ab_id": ab.id if ab else None,
                    "last_diagnostics": (dg.result or {}).get("verdict") if dg else None, "diag_id": dg.id if dg else None},
         "agents": {"provider": prov.name, "last_status": ar.status if ar else None, "last_id": ar.id if ar else None,
-                   "pending_approval": pending, "_disabled": prov.name == "rules",
-                   "_hint": "No AI login: the deterministic multi-role desk runs. Log in with `codex login` or add an API "
+                   "agent_orders_today": agent_orders, "_disabled": prov.name == "rules",
+                   "_hint": "No AI login: the deterministic rule-based agents run. Log in with `codex login` or add an API "
                             "key on the Integrations page."},
         "risk": {"kill_switch": bool(kill and kill.value), "blocked_today": _count(db, select(func.count(StageEvent.id)).where(
             StageEvent.stage == "risk", StageEvent.status == "warning", StageEvent.ts >= today))},
@@ -269,13 +270,13 @@ def lifecycle(db: Session, strategy_key: str, sharpe_gate: float = 0.5, min_cycl
     else:
         add("forward", "Forward test (simulator)", "pending", f">= {min_cycles} cycles, no >5% loss", {}, "trading")
     live = next((b for b in bots if b.broker == "alpaca_paper"), None)
-    approved = db.scalar(select(func.count(AgentRun.id)).where(AgentRun.status == "executed"))
+    agent_runs = db.scalar(select(func.count(AgentRun.id)).where(AgentRun.status == "executed"))
     if live:
         add("live_paper", "Live paper (Alpaca)", "pass" if live.cycles else "running", "human approval to go live-paper",
             {"bot": live.name, "cycles": live.cycles}, f"trading?bot={live.id}", live.id)
     else:
         add("live_paper", "Live paper (Alpaca)", "pending", "human approval to go live-paper",
-            {"alpaca_configured": get_settings().alpaca_configured, "agent_runs_executed": approved}, "trading")
+            {"alpaca_configured": get_settings().alpaca_configured, "agent_runs_executed": agent_runs}, "trading")
     add("analytics", "Analytics & report", "pass" if (bt and sim) else "pending", "backtest vs forward explained",
         {"backtest_id": bt.id if bt else None, "bot_id": sim.id if sim else None},
         f"analytics?backtest={bt.id if bt else ''}&bot={sim.id if sim else ''}")
